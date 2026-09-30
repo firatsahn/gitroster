@@ -209,6 +209,7 @@ def make_handler(app):
 
 
 def serve(app):
+    opener.warm()
     srv = ThreadingHTTPServer(("127.0.0.1", app.port), make_handler(app))
     try:
         srv.serve_forever()

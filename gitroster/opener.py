@@ -7,6 +7,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import threading
 import sys
 import time
 
@@ -91,12 +92,30 @@ def _terminal_available(entry):
 
 
 _detected = {"at": 0, "value": None}
+_lock = threading.Lock()
 
 
-def detect(max_age=60):
-    """Editors and terminals found on this machine (cached: scanning PATH is slow on WSL)."""
-    if _detected["value"] is None or time.time() - _detected["at"] > max_age:
-        _detected.update(at=time.time(), value=_detect())
+def _refresh():
+    if not _lock.acquire(blocking=False):
+        return
+    try:
+        _detected.update(value=_detect(), at=time.time())
+    finally:
+        _lock.release()
+
+
+def warm():
+    """Scan in the background at startup so the settings panel opens instantly."""
+    threading.Thread(target=_refresh, daemon=True).start()
+
+
+def detect(max_age=600):
+    """Editors and terminals found on this machine. Scanning PATH is slow on WSL, so the last result is
+    served at once and refreshed in the background when it is stale."""
+    if _detected["value"] is None:
+        _refresh()
+    elif time.time() - _detected["at"] > max_age:
+        warm()
     return _detected["value"]
 
 
