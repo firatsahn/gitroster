@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -86,6 +87,17 @@ class ScannerTest(unittest.TestCase):
         self.assertIn("## mono", md)
         self.assertIn("my note", md)
 
+    def test_park_removes_untracked_folders_and_writes_restore(self):
+        p = make_repo(self.root, "web", {"package.json": "{}", "dist/tracked.js": "x"})
+        (p / "node_modules" / "a").mkdir(parents=True)
+        (p / "node_modules" / "a" / "i.js").write_text("x")
+        repo = scanner.scan([self.root])["repos"][0]
+        removed, text = scanner.park(repo, today="2026-01-01")
+        self.assertEqual(removed, [str(p / "node_modules")])
+        self.assertTrue((p / "dist" / "tracked.js").exists())  # tracked by git: untouched
+        self.assertIn("Parked 2026-01-01", text)
+        self.assertIn("npm install", text)
+
     def test_venv_is_linked_and_used_in_run_command(self):
         p = make_repo(self.root, "api", {"main.py": "print(1)", "requirements.txt": "flask\n"})
         venv = p / ".venv"
@@ -96,18 +108,18 @@ class ScannerTest(unittest.TestCase):
         s = scanner.scan([self.root])
         (r,) = s["repos"]
         self.assertEqual([e["path"] for e in r["envs"]], [str(venv)])
-        self.assertEqual(r["run"], [".venv/bin/python main.py"])
+        self.assertEqual(r["run"], [f".venv{scanner.SEP}{scanner.BIN}{scanner.SEP}python main.py"])
         self.assertEqual(r["setup"], [])
-        self.assertEqual(r["activate"], "source .venv/bin/activate")
+        self.assertEqual(r["activate"], (f".venv{scanner.SEP}{scanner.BIN}{scanner.SEP}activate" if scanner.WIN else "source .venv/bin/activate"))
         orphans = [e for e in s["envs"] if not e["repo"]]
         self.assertEqual([e["name"] for e in orphans], ["stray_env"])
 
     def test_python_repo_without_venv_gets_setup_steps(self):
         make_repo(self.root, "tool", {"main.py": "x", "requirements.txt": "a\n"})
         (r,) = scanner.scan([self.root])["repos"]
-        self.assertEqual(r["setup"][0], "python3 -m venv .venv")
-        self.assertIn(".venv/bin/pip install -r requirements.txt", r["setup"])
-        self.assertEqual(r["run"], ["python3 main.py"])
+        self.assertEqual(r["setup"][0], f"{scanner.PY} -m venv .venv")
+        self.assertIn(f".venv{scanner.SEP}{scanner.BIN}{scanner.SEP}pip install -r requirements.txt", r["setup"])
+        self.assertEqual(r["run"], [f"{scanner.PY} main.py"])
 
     def test_generic_folder_names_get_parent_prefix(self):
         make_repo(self.root / "venhancer", "project")
@@ -154,6 +166,37 @@ class ScannerTest(unittest.TestCase):
         ]
         procs.link(ports, [], repos, envs)
         self.assertEqual([p["repo"] for p in ports], ["/r/one", "/r/two", None])
+
+
+class PlatformParsersTest(unittest.TestCase):
+    def test_parse_ss(self):
+        out = 'LISTEN 0 128 127.0.0.1:8765 0.0.0.0:* users:(("python3",pid=42,fd=3))\nLISTEN 0 4096 [::]:22 [::]:*\n'
+        self.assertEqual(procs.parse_ss(out), [("127.0.0.1", "8765", "42", "python3")])
+
+    def test_parse_lsof_macos(self):
+        out = ("COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME\n"
+               "node 501 me 23u IPv4 0x1 0t0 TCP *:3000 (LISTEN)\n"
+               "Python 77 me 4u IPv6 0x2 0t0 TCP [::1]:8000 (LISTEN)\n")
+        self.assertEqual(procs.parse_lsof(out), [("*", "3000", "501", "node"), ("[::1]", "8000", "77", "Python")])
+
+    def test_parse_netstat_windows(self):
+        out = ("  Proto  Local Address          Foreign Address        State           PID\r\n"
+               "  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       1040\r\n"
+               "  TCP    127.0.0.1:5173         0.0.0.0:0              LISTENING       9120\r\n"
+               "  TCP    127.0.0.1:5173         127.0.0.1:5000         ESTABLISHED     9120\r\n")
+        self.assertEqual(procs.parse_netstat(out), [("0.0.0.0", "135", "1040"), ("127.0.0.1", "5173", "9120")])
+
+    def test_parse_powershell_processes(self):
+        one = '{"p":9120,"n":"node.exe","c":"node vite","t":1700000000}'
+        self.assertEqual(procs.parse_ps_procs(one)[9120]["n"], "node.exe")
+        self.assertEqual(len(procs.parse_ps_procs("[" + one + "," + one.replace("9120", "7") + "]")), 2)
+        self.assertEqual(procs.parse_ps_procs("garbage"), {})
+
+    def test_walk_size_fallback(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "a").mkdir()
+            (Path(d) / "a" / "f").write_bytes(b"x" * 100)
+            self.assertEqual(scanner.walk_size(d, 1e12), 100)
 
 
 class ServerTest(unittest.TestCase):
@@ -217,7 +260,7 @@ class ServerTest(unittest.TestCase):
         self.assertIn("hello", out["log"])
 
     def test_kill_refuses_non_listening_pid(self):
-        sleeper = subprocess.Popen(["sleep", "30"])  # alive, but not listening on any port
+        sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])  # alive, but not listening on any port
         try:
             code, _ = self.call("/api/kill", {"pid": sleeper.pid})
             self.assertEqual(code, 404)

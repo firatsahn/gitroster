@@ -4,6 +4,7 @@ import os
 import shlex
 import signal
 import subprocess
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,6 +48,8 @@ class App:
         s = dict(self.scan)
         s["meta"] = self.store.meta()
         s["scanning"] = self.scanning
+        s["platform"] = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
+        s["home"] = str(Path.home())
         return s
 
     def start(self, path, cmd):
@@ -56,10 +59,27 @@ class App:
         log = self.store.log_path(Path(path).name)
         with open(log, "ab") as f:
             f.write(f"\n$ {cmd}   [{time.ctime()}]\n".encode())
-            proc = subprocess.Popen(shlex.split(cmd), cwd=path, stdout=f, stderr=subprocess.STDOUT,
-                                    stdin=subprocess.DEVNULL, start_new_session=True)
+            if sys.platform == "win32":  # cmd comes from the detected list, never from the request
+                proc = subprocess.Popen(cmd, cwd=path, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                        shell=True, creationflags=0x00000208)  # new process group, detached
+            else:
+                proc = subprocess.Popen(shlex.split(cmd), cwd=path, stdout=f, stderr=subprocess.STDOUT,
+                                        stdin=subprocess.DEVNULL, start_new_session=True)
         threading.Thread(target=proc.wait, daemon=True).start()  # reap it when it exits
         return {"pid": proc.pid, "log": str(log)}
+
+    def park(self, path):
+        repo = self.repo(path)
+        if not repo:
+            raise ValueError("unknown repo")
+        ports, _ = self.live_ports()
+        if any(p["repo"] == path for p in ports):
+            raise ValueError("repo has a process listening on a port; stop it first")
+        before = sum(i["size"] or 0 for i in scanner.parkable(repo))
+        removed, text = scanner.park(repo)
+        note = self.store.meta().get(path, {}).get("note", "")
+        meta = self.store.update_meta(path, note=(note + "\n\n" + text).strip()[:4000])
+        return {"removed": removed, "freed": before, "meta": meta}
 
     def tail(self, path, n=4000):
         log = self.store.log_path(Path(path).name)
@@ -134,6 +154,8 @@ def make_handler(app):
                         return self.err(404, "not a listening process")
                     os.kill(pid, signal.SIGTERM)
                     return self.ok({"ok": True})
+                if path == "/api/park":
+                    return self.ok(app.park(body["path"]))
                 if path == "/api/start":
                     return self.ok(app.start(body["path"], body["cmd"]))
                 if path == "/api/meta":

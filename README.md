@@ -27,6 +27,20 @@ git clone https://github.com/firatsahn/gitroster && cd gitroster
 python3 -m gitroster ~/projects
 ```
 
+### Desktop app (Electron)
+
+Prefer a window over a browser tab? The same UI runs in an Electron shell on Windows, macOS and Linux:
+
+```bash
+cd electron && npm install && npm start
+```
+
+It starts the local server on a free port and stops it when you close the window. It needs Python 3.9+ on the machine (set `GITROSTER_PYTHON` if it is not on your PATH). It scans `~/projects`, or your home folder if that does not exist; set `GITROSTER_ROOTS` to scan other folders. `npm run dist` builds an installer with electron-builder.
+
+### Platforms
+
+Linux, macOS and Windows are supported. Ports come from `ss` (Linux), `lsof` (macOS) or `netstat` (Windows). On Windows a process's working directory is not readable, so ports are matched to repos by the command line only.
+
 Scan several folders at once with `gitroster ~/projects ~/tools`. Without arguments it scans your home folder. Use `gitroster --json` to print a scan for scripts.
 
 ## What you get
@@ -35,7 +49,7 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - Every git repo, with last commit, branch, size on disk and README summary
 - Sorted by origin: **mine** (you authored commits), **fork** (has an `upstream` remote), **clone** (someone else's) and **local** (no remote)
 - Flags for **uncommitted changes**, **unpushed commits**, **no remote** and **dormant** (no commit in 90+ days and nothing running)
-- Notes, pin and ignore, kept in `~/.config/gitroster/`
+- Notes, pin and ignore, kept in `~/.config/gitroster/` (`~/Library/Application Support/gitroster` on macOS, `%APPDATA%\gitroster` on Windows)
 
 **How to run it**
 - Setup and run commands detected from `package.json` (npm, pnpm, yarn), `pyproject.toml`, `requirements.txt`, `manage.py`, `main.py`/`app.py`, `Cargo.toml`, `go.mod`, `pubspec.yaml`, `Makefile`, Docker Compose and Wrangler
@@ -52,7 +66,7 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 **Cleanup**
 - Environments, `node_modules`, build folders and large files, sorted by size and marked "in use" when the repo is running
 - Dormant repos with their size
-- Copy-paste `rm` commands. **gitroster never deletes anything.**
+- Copy-paste `rm` commands. The only thing gitroster deletes itself is what you **Park** (dependency and build folders, after a confirmation, never git-tracked files and never while the repo is running)
 
 **AI runbook (optional)**
 - Press "Explain how to run" and your local agent writes a short runbook from the README, file tree and detected commands. It is labelled *AI-generated, unverified* and nothing is executed.

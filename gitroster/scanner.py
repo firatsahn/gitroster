@@ -2,7 +2,9 @@
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -12,37 +14,67 @@ from . import procs
 PRUNE = {
     "node_modules", ".cache", ".git", "__pycache__", ".npm", "site-packages",
     ".local", "snap", ".cargo", ".rustup", ".gradle", ".m2", "dist", "build",
-    "Library", "AppData", ".Trash", "target",
+    "Library", "AppData", ".Trash", "target", "$RECYCLE.BIN", "Application Data",
 }
 MAX_DEPTH = 6
 GENERIC_NAMES = {"project", "src", "app", "code", "repo", "main", "web", "backend", "frontend"}
 RECLAIMABLE = ["node_modules", ".next", ".nuxt", ".turbo", ".parcel-cache", "dist", "build"]
 BIG_FILE = 50 * 1024 * 1024
 VENV_NAMES = (".venv", "venv", "env")
+WIN = sys.platform == "win32"
+BIN = "Scripts" if WIN else "bin"
+PY = "python" if WIN else "python3"
+SEP = "\\" if WIN else "/"
 ENTRY_FILES = ("main.py", "app.py", "run.py", "server.py")
 
 
 def run(cmd, timeout=10, cwd=None):
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd).stdout
+        return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=timeout, cwd=cwd).stdout
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return ""
 
 
 def read(path, limit=6000):
     try:
-        with open(path, errors="replace") as f:
+        with open(path, encoding="utf-8", errors="replace") as f:
             return f.read(limit)
     except OSError:
         return ""
 
 
+def walk_size(path, deadline):
+    total = 0
+    stack = [str(path)]
+    while stack:
+        if time.time() > deadline:
+            return None
+        try:
+            with os.scandir(stack.pop()) as it:
+                for e in it:
+                    try:
+                        if e.is_symlink():
+                            continue
+                        if e.is_dir():
+                            stack.append(e.path)
+                        else:
+                            total += e.stat().st_size
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+    return total
+
+
 def dir_size(path, timeout=20):
-    out = run(["du", "-sk", str(path)], timeout)
-    try:
-        return int(out.split()[0]) * 1024
-    except (IndexError, ValueError):
-        return None
+    if shutil.which("du"):
+        out = run(["du", "-sk", str(path)], timeout)
+        try:
+            return int(out.split()[0]) * 1024
+        except (IndexError, ValueError):
+            return None
+    return walk_size(path, time.time() + timeout)  # Windows has no du
 
 
 def walk(roots):
@@ -274,22 +306,66 @@ def owner(path, items):
     return best
 
 
+def install_cmds(path):
+    """Commands that rebuild what `park` removes (deps, venv)."""
+    p, cmds = Path(path), []
+    if (p / "package.json").exists():
+        pm = "pnpm" if (p / "pnpm-lock.yaml").exists() else "yarn" if (p / "yarn.lock").exists() else "npm"
+        cmds.append(f"{pm} install")
+    pip = f".venv{SEP}{BIN}{SEP}pip"
+    if (p / "requirements.txt").exists():
+        cmds += [f"{PY} -m venv .venv", f"{pip} install -r requirements.txt"]
+    elif (p / "pyproject.toml").exists():
+        cmds += [f"{PY} -m venv .venv", f"{pip} install -e ."]
+    return cmds
+
+
 def finalize(repo):
     """Fill in `{py}` and Python setup steps once envs are linked."""
-    py = "python3"
+    py = PY
     venvs = [e for e in repo["envs"] if e["kind"] == "venv"]
     if venvs:
         v = venvs[0]["path"]
-        py = os.path.relpath(v, repo["path"]) + "/bin/python" if v.startswith(repo["path"]) else v + "/bin/python"
-        repo["activate"] = f"source {os.path.relpath(v, repo['path']) if v.startswith(repo['path']) else v}/bin/activate"
+        inside = v.startswith(repo["path"] + os.sep)
+        v = os.path.relpath(v, repo["path"]) if inside else v
+        py = f"{v}{SEP}{BIN}{SEP}python"
+        repo["activate"] = f"{v}{SEP}{BIN}{SEP}activate" if WIN else f"source {v}/bin/activate"
     elif "python" in repo["stack"]:
-        repo["setup"].insert(0, "python3 -m venv .venv")
+        repo["setup"].insert(0, f"{PY} -m venv .venv")
+        pip = f".venv{SEP}{BIN}{SEP}pip"
         p = Path(repo["path"])
         if (p / "requirements.txt").exists():
-            repo["setup"].append(".venv/bin/pip install -r requirements.txt")
+            repo["setup"].append(f"{pip} install -r requirements.txt")
         elif (p / "pyproject.toml").exists():
-            repo["setup"].append(".venv/bin/pip install -e .")
+            repo["setup"].append(f"{pip} install -e .")
     repo["run"] = [c.replace("{py}", py) for c in repo["run"]]
+    repo["restore"] = install_cmds(repo["path"])
+
+
+def parkable(repo):
+    """Folders `park` may remove: envs and build folders inside the repo, never tracked by git."""
+    root, out = repo["path"], []
+    for item in [*repo["reclaimable"], *repo["envs"]]:
+        path = item["path"]
+        if not path.startswith(root + os.sep) or os.path.islink(path) or not os.path.isdir(path):
+            continue
+        if run(["git", "-C", root, "ls-files", "--", path], 10).strip():
+            continue
+        out.append({"path": path, "kind": item.get("kind", ""), "size": item.get("size")})
+    return out
+
+
+def park(repo, today=None):
+    """Delete the parkable folders. Returns (removed paths, restore text for the note)."""
+    removed = []
+    for item in parkable(repo):
+        shutil.rmtree(item["path"])
+        removed.append(item["path"])
+    names = ", ".join(os.path.relpath(x, repo["path"]) for x in removed)
+    text = f"Parked {today or time.strftime('%Y-%m-%d')} (removed {names or 'nothing'})."
+    if repo.get("restore"):
+        text += " To restore: " + " && ".join(repo["restore"])
+    return removed, text
 
 
 def scan(roots, progress=None):

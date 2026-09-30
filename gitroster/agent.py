@@ -5,6 +5,7 @@ not to use tools. Output is stored as "AI-generated, unverified".
 """
 import os
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -67,6 +68,7 @@ def build_prompt(repo):
 
 def explain(repo, agent_cmd=None, timeout=180):
     cmd = shlex.split(agent_cmd or os.environ.get("GITROSTER_AGENT") or DEFAULT_CMD)
+    cmd[0] = shutil.which(cmd[0]) or cmd[0]  # Windows needs the resolved claude.cmd / claude.exe
     try:
         r = subprocess.run(cmd, input=build_prompt(repo), capture_output=True, text=True,
                            timeout=timeout, cwd=repo["path"])

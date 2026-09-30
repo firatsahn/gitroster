@@ -1,21 +1,31 @@
 """Small JSON persistence: user notes/flags and the last scan."""
 import json
 import os
+import sys
 import threading
 from pathlib import Path
 
 
-def _dir(env, fallback):
-    base = os.environ.get(env) or str(Path.home() / fallback)
+def _dir(kind):
+    """Per-OS config/state folder: XDG on Linux, Application Support on macOS, AppData on Windows."""
+    home = Path.home()
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA" if kind == "config" else "LOCALAPPDATA") or str(home / "AppData" / ("Roaming" if kind == "config" else "Local"))
+    elif sys.platform == "darwin":
+        base = str(home / "Library" / "Application Support")
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME" if kind == "config" else "XDG_STATE_HOME") or str(home / (".config" if kind == "config" else ".local/state"))
     d = Path(base) / "gitroster"
+    if sys.platform in ("win32", "darwin") and kind == "state":
+        d = d / "state"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 class Store:
     def __init__(self, config_dir=None, state_dir=None):
-        self.config = Path(config_dir) if config_dir else _dir("XDG_CONFIG_HOME", ".config")
-        self.state = Path(state_dir) if state_dir else _dir("XDG_STATE_HOME", ".local/state")
+        self.config = Path(config_dir) if config_dir else _dir("config")
+        self.state = Path(state_dir) if state_dir else _dir("state")
         self.config.mkdir(parents=True, exist_ok=True)
         self.state.mkdir(parents=True, exist_ok=True)
         self.lock = threading.Lock()

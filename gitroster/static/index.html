@@ -96,7 +96,7 @@ a{color:inherit}
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const home = p => p.replace(/^\/home\/[^/]+/, '~');
+const home = p => S.home && p.startsWith(S.home) ? '~' + p.slice(S.home.length) : p;
 const size = b => b == null ? '?' : b >= 2**30 ? (b/2**30).toFixed(1)+' GB' : b >= 2**20 ? (b/2**20).toFixed(0)+' MB' : Math.max(1, Math.round(b/1024))+' KB';
 const days = t => t ? (Date.now()/1000 - t) / 86400 : Infinity;
 const ago = t => { const d = days(t); return d === Infinity ? 'no commits' : d < 1 ? 'today' : d < 60 ? Math.floor(d)+'d ago' : d < 700 ? Math.floor(d/30)+'mo ago' : Math.floor(d/365)+'y ago'; };
@@ -217,6 +217,8 @@ function detail(r) {
   h += `<div class="line"><span class="k">AI</span><button class="go" data-explain ${busy.has('ai' + r.path) ? 'disabled' : ''}>${busy.has('ai' + r.path) ? 'Asking…' : m.ai ? 'Ask again' : 'Explain how to run'}</button><span class="meta">uses your local agent · nothing is run</span></div>`;
   if (m.ai) h += `<div class="ai">${esc(m.ai)}</div><div class="meta">AI-generated, unverified · ${ago(m.ai_at)}</div>`;
   if (ui.logs[r.path]) h += `<div class="log">${esc(ui.logs[r.path])}</div>`;
+  const pk = (r.reclaimable || []).concat(r.envs.filter(e => e.path.startsWith(r.path)));
+  if (pk.length) h += `<div class="line"><span class="k">park</span><button class="go" data-park ${running(r) ? 'disabled' : ''}>Park</button><span class="meta">${running(r) ? 'stop it first · ' : ''}removes ${pk.map(x => esc(x.path.slice(r.path.length + 1))).join(', ')} (${size(pk.reduce((a, x) => a + (x.size || 0), 0))}) and saves the restore command in the note</span></div>`;
   h += `<div class="line"><span class="k"></span><button class="go" data-ignore>${m.ignored ? 'Unignore' : 'Ignore'}</button></div>`;
   return h + '</div>';
 }
@@ -256,12 +258,12 @@ function renderCleanup(q) {
   const idle = items.filter(i => !i.repo || !running(i.repo));
   const bigs = S.repos.flatMap(r => r.big_files.map(f => ({...f, repo: r}))).sort((a, b) => b.size - a.size).slice(0, 12);
   const dorm = S.repos.filter(r => dormant(r) && !meta(r).ignored).sort((a, b) => (b.size || 0) - (a.size || 0));
-  const rm = p => `rm -rf '${p.replace(/'/g, "'\\''")}'`;
+  const rm = p => S.platform === 'windows' ? `rmdir /s /q "${p}"` : `rm -rf '${p.replace(/'/g, "'\\''")}'`;
   let h = `<div class="stats">
     <div><b>${size(idle.reduce((a, i) => a + i.size, 0))}</b><span>in envs & build folders (not in use)</span></div>
     <div><b>${size(S.repos.reduce((a, r) => a + (r.big_total || 0), 0))}</b><span>in large files</span></div>
     <div><b>${dorm.length}</b><span>dormant repos · ${size(dorm.reduce((a, r) => a + (r.size || 0), 0))}</span></div></div>
-    <div class="meta">gitroster never deletes anything. Copy the command and run it yourself.</div>`;
+    <div class="meta">Copy a command and run it yourself, or use Park on a repo to clear its dependency and build folders.</div>`;
   h += '<h2>Environments & build folders</h2><table>' + (items.length ? items.map(i => `<tr>
     <td><span class="mono">${esc(home(i.path))}</span><div class="meta">${esc(i.kind)}${i.repo ? ' · ' + esc(i.repo.name) + ' · last commit ' + ago(i.repo.last_commit) : ''}${i.repo && running(i.repo) ? ' · <b>in use</b>' : ''}</div></td>
     <td class="r">${size(i.size)}</td><td class="r"><button data-rm="${esc(rm(i.path))}">Copy rm</button></td></tr>`).join('') : '<tr><td class="empty">Nothing found.</td></tr>') + '</table>';
@@ -290,6 +292,10 @@ document.addEventListener('click', e => {
   const r = S.repos.find(x => x.path === path);
   if (t.hasAttribute('data-pin')) return act(async () => { S.meta[path] = await api('/api/meta', {path, pinned: !meta(r).pinned}); });
   if (t.hasAttribute('data-ignore')) return act(async () => { S.meta[path] = await api('/api/meta', {path, ignored: !meta(r).ignored}); });
+  if (t.hasAttribute('data-park')) return act(async () => {
+    if (!confirm(`Park ${r.name}?\n\nThis DELETES its dependency/build folders (not your code). The restore command goes into the note.`)) return;
+    const res = await api('/api/park', {path}); S.meta[path] = res.meta; toast('Freed ' + size(res.freed)); await rescan();
+  });
   if (t.dataset.start) return act(async () => {
     if (!confirm(`Run in ${home(path)}:\n\n${t.dataset.start}`)) return;
     ui.busy.add(path); render();
