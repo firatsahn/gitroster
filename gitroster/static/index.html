@@ -69,7 +69,7 @@ html{overflow-y:scroll}
 .pm{max-width:var(--pw,920px);margin:0 auto;padding:32px 16px 80px}
 .ph{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
 #ptags .tag{margin-left:4px}
-#plink{display:inline-flex;align-items:center;gap:5px;margin-left:6px;padding:1px 10px 1px 8px;border:1px solid var(--line);border-radius:12px;font-size:12px;color:var(--fg);text-decoration:none;vertical-align:middle}
+#plink{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-left:6px;padding:0;border:1px solid var(--line);border-radius:50%;color:var(--fg);text-decoration:none;vertical-align:middle}
 #plink:hover{border-color:var(--fg)}
 #plink.hide{display:none}
 #sback{margin-bottom:10px}
@@ -78,6 +78,10 @@ html{overflow-y:scroll}
 #ptabs a{padding:6px 0;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 #ptabs a.on{color:var(--fg);border-color:var(--fg)}
 .x{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
+a.ibw{display:inline-flex}
+.ib{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--fg)}
+.ib:disabled svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 button.primary:hover{opacity:.85}
 #settings{background:rgba(0,0,0,.45);align-items:flex-start;justify-content:center;padding:10vh 16px}
@@ -152,9 +156,9 @@ a.br{cursor:pointer;text-decoration:underline dotted}
     <span class="sub" id="sub">loading…</span>
     <span class="sp"></span>
     <input id="q" placeholder="filter  ( / )" autocomplete="off">
-    <a href="/api/export.md" download="gitroster.md"><button>Export .md</button></a>
-    <button id="cfg">Settings</button>
-    <button id="re">Rescan</button>
+    <a href="/api/export.md" download="gitroster.md" class="ibw"><button class="ib" title="Export everything as Markdown" aria-label="Export as Markdown"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button></a>
+    <button id="cfg" class="ib" title="Settings" aria-label="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    <button id="re" class="ib" title="Rescan" aria-label="Rescan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </header>
 
   <nav id="tabs">
@@ -508,7 +512,7 @@ async function renderPage() {
   $('#ppath').textContent = home(r.path) + (r.branch ? ' · ' + r.branch : '');
   $('#ptabs').innerHTML = PTABS.map(([k, l]) => `<a data-ptab="${k}" class="${pg.tab === k ? 'on' : ''}">${l}</a>`).join('');
   const tab = pg.tab, path = r.path, body = $('#pbody');
-  ovOf(path).then(ov => { const a = $('#plink'); if (pg.path === path && ov.web_url) { const host = ov.web_url.split('/')[2]; a.href = ov.web_url; a.innerHTML = (host === 'github.com' ? ICON_GH : ICON_LINK) + (HOSTS[host] || 'Remote'); a.classList.remove('hide'); } }).catch(() => {});
+  ovOf(path).then(ov => { const a = $('#plink'); if (pg.path === path && ov.web_url) { const host = ov.web_url.split('/')[2]; a.href = ov.web_url; a.innerHTML = host === 'github.com' ? ICON_GH : ICON_LINK; a.title = 'Open on ' + (HOSTS[host] || 'the remote'); a.setAttribute('aria-label', a.title); a.classList.remove('hide'); } }).catch(() => {});
   $('#plink').classList.add('hide');
   body.innerHTML = '<div class="empty">Loading…</div>';
   try {
