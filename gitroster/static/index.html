@@ -61,35 +61,62 @@ a{color:inherit}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.on{opacity:1}
 .hide{display:none}
-#page{position:fixed;inset:0;background:var(--bg);z-index:10;display:none;flex-direction:column}
-#page.on{display:flex}
-.ph{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-#ptabs{padding:0 16px;margin:0}
-.pb{flex:1;overflow:auto;padding:12px 16px 40px}
-.split{display:grid;grid-template-columns:minmax(240px,32%) 1fr;gap:16px;align-items:start}
-.split.hist{grid-template-columns:1fr 1fr}
-.split2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+#page,#settings{position:fixed;inset:0;background:var(--bg);z-index:10;display:none;overflow:auto}
+#page.on{display:block}
+.pm{max-width:var(--pw,920px);margin:0 auto;padding:32px 16px 80px}
+#page.wide{--pw:1120px}
+.ph{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+#ptags .tag{margin-left:4px}
+#ptabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:16px}
+#ptabs a{padding:6px 0;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+#ptabs a.on{color:var(--fg);border-color:var(--fg)}
+.x{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.primary:hover{opacity:.85}
+#settings{background:rgba(0,0,0,.45);align-items:flex-start;justify-content:center;padding:10vh 16px}
+#settings.on{display:flex}
+#settings .card{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:20px;width:100%;max-width:460px}
+.opt{display:flex;gap:8px;align-items:center;padding:4px 0;color:var(--fg);font-size:14px}
+.opt input{width:auto}
+.ov{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:32px;align-items:start}
+@media(max-width:760px){.ov{grid-template-columns:1fr}}
+.ov aside h2:first-child{margin-top:0}
+.lbar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--line);gap:1px}.lbar i{display:block}
+.lg{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:1px 0}
+.lg .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.split{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:16px;align-items:start}
+.split.hist{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 @media(max-width:820px){.split,.split.hist{grid-template-columns:1fr}}
-.gl{overflow:auto;max-height:calc(100vh - 150px)}
-.cp{max-height:calc(100vh - 150px);overflow:auto}
-.list{max-height:calc(100vh - 210px);overflow:auto}
-.ent{display:flex;justify-content:space-between;gap:8px;padding:3px 6px;border-radius:4px;cursor:pointer}
-.ent:hover,.ent.sel{background:var(--card)}
-.code{font:12px/1.5 ui-monospace,monospace;background:var(--card);border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:calc(100vh - 220px)}
+.panel{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)}
+.panel .bar2{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line);font-size:13px;min-height:38px}
+.panel .bar2 .sp{flex:1}
+.crumbs{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mute)}
+.ent{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-top:1px solid var(--line);font-size:13px}
+.ent:first-child{border-top:0}
+.ent:hover{background:var(--card)}
+.ent.sel{background:var(--card);box-shadow:inset 2px 0 var(--fg)}
+.ent .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic{flex:none;color:var(--mute)}
+.ent.dir .ic{color:var(--fg)}
+.list{max-height:70vh;overflow:auto}
+.gl{overflow:auto;max-height:75vh}
+.cp{max-height:75vh;overflow:auto}
+.code{font:12px/1.55 ui-monospace,monospace;background:var(--bg);overflow:auto;max-height:70vh}
+.panel .code{border:0}
 .cl,.diff div{white-space:pre}
 .cl{display:flex}
 .cl i{flex:none;width:52px;text-align:right;padding-right:12px;color:var(--mute);font-style:normal;user-select:none}
 .cl.hit{background:rgba(245,158,11,.28)}
 .diff .add{background:rgba(22,163,74,.16)}.diff .del{background:rgba(220,38,38,.14)}.diff .hunk{color:var(--mute)}
 details{margin:8px 0}summary{cursor:pointer;font:12px ui-monospace,monospace}
+details .code{border:1px solid var(--line);border-radius:6px;background:var(--card)}
 pre.msg,pre.readme{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;margin:6px 0}
 pre.readme{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px;max-height:420px;overflow:auto}
-.lbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line)}.lbar i{display:block}
 .sr{padding:3px 0;overflow:hidden;text-overflow:ellipsis}
 .snip{font:12px ui-monospace,monospace;color:var(--mute)}
 mark{background:rgba(245,158,11,.35);color:inherit;border-radius:2px}
 .big{width:100%;max-width:440px}
-input[type=checkbox]{width:auto}
+input[type=checkbox],input[type=radio]{width:auto}
 label{display:inline-flex;gap:4px;align-items:center;color:var(--mute);font-size:12px}
 .gr.sel{background:var(--card)}
 .gr{cursor:pointer;min-width:0}
@@ -116,13 +143,13 @@ a.br{cursor:pointer;text-decoration:underline dotted}
     <span class="sp"></span>
     <input id="q" placeholder="filter  ( / )" autocomplete="off">
     <a href="/api/export.md" download="gitroster.md"><button>Export .md</button></a>
+    <button id="cfg">Settings</button>
     <button id="re">Rescan</button>
   </header>
 
   <nav id="tabs">
     <a data-tab="repos" class="on">Repos</a>
     <a data-tab="search">Search</a>
-    <a data-tab="activity">Activity</a>
     <a data-tab="deps">Dependencies</a>
     <a data-tab="ports">Ports</a>
   </nav>
@@ -139,17 +166,20 @@ a.br{cursor:pointer;text-decoration:underline dotted}
       <label><input type="checkbox" data-scope="code" checked>code</label><label><input type="checkbox" data-scope="files" checked>files</label><label><input type="checkbox" data-scope="commits" checked>commits</label><label><input type="checkbox" id="sre">regex</label></div>
     <div id="sres"><div class="meta">Type at least 2 characters. Searches tracked files, file names and commit messages of every repo.</div></div>
   </section>
-  <section id="activity" class="hide">
-    <div class="bar"><select id="adays"><option value="7">last 7 days</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option><option value="365">last year</option></select>
-      <label><input type="checkbox" id="amine">only my commits</label></div>
-    <div id="ares"></div>
-  </section>
   <section id="deps" class="hide"></section>
   <section id="ports" class="hide"></section>
 </main>
-<div id="page"><div class="ph"><div><b id="ptitle"></b> <span id="ptags"></span><div class="path" id="ppath"></div></div><span class="sp"></span>
-  <button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button><button id="pclose">Close (Esc)</button></div>
-  <nav id="ptabs"></nav><div class="pb" id="pbody"></div></div>
+<div id="page"><div class="pm">
+  <header class="ph">
+    <div><b id="ptitle"></b> <span id="ptags"></span> <a id="plink" class="br hide" target="_blank" rel="noopener"></a><div class="path" id="ppath"></div></div>
+    <span class="sp"></span>
+    <button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button>
+    <button id="pclose" class="x" aria-label="Close" title="Close (Esc)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </header>
+  <nav id="ptabs"></nav><div id="pbody"></div></div></div>
+<div id="settings"><div class="card">
+  <div class="ph" style="margin-bottom:12px"><b>Settings</b><span class="sp"></span><button id="sclose" class="x" aria-label="Close"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
+  <div id="sbody"></div></div></div>
 <div id="toast"></div>
 
 <script>
@@ -162,8 +192,8 @@ const ago = t => { const d = days(t); return d === Infinity ? 'no commits' : d <
 const DORMANT = 90;
 
 let S = {repos: [], envs: [], ports: [], containers: [], meta: {}};
-let ui = {tab: 'repos', chip: 'all', dchip: 'all', open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}, act: null, actRepo: null};
-try { Object.assign(ui, JSON.parse(localStorage.getItem('gr-ui') || '{}'), {open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}, act: null, actRepo: null}); } catch {}
+let ui = {tab: 'repos', chip: 'all', dchip: 'all', open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}};
+try { Object.assign(ui, JSON.parse(localStorage.getItem('gr-ui') || '{}'), {open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}}); } catch {}
 const saveUi = () => { try { localStorage.setItem('gr-ui', JSON.stringify({tab: ui.tab, chip: ui.chip, dchip: ui.dchip, sort: $('#sort').value})); } catch {} };
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2200); }
@@ -210,12 +240,11 @@ function render() {
   const total = S.repos.reduce((a, r) => a + (r.size || 0), 0);
   $('#sub').textContent = S.scanned ? `${S.repos.length} repos · ${S.ports.length} ports · ${size(total)}` : 'no scan yet';
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === ui.tab));
-  for (const id of ['repos', 'search', 'activity', 'deps', 'ports']) $('#' + id).classList.toggle('hide', id !== ui.tab);
-  $('#q').style.display = ui.tab === 'search' || ui.tab === 'activity' ? 'none' : '';
+  for (const id of ['repos', 'search', 'deps', 'ports']) $('#' + id).classList.toggle('hide', id !== ui.tab);
+  $('#q').style.display = ui.tab === 'search' ? 'none' : '';
   if (ui.tab === 'repos') renderRepos(q);
   if (ui.tab === 'ports') renderPorts(q);
   if (ui.tab === 'deps') renderDeps(q);
-  if (ui.tab === 'activity' && !ui.act && !ui.actBusy) loadActivity();
 }
 
 function chips() {
@@ -257,6 +286,7 @@ function repoRow(r) {
       ${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join('')}
       <span class="sp"></span>
       <span class="meta">${size(r.size)} · ${ago(r.last_commit)}</span>
+      <button class="go primary" data-pp="${esc(p)}" data-pt="overview">Details</button>
     </div>
     <div class="path">${esc(home(p))}${r.branch ? ` · ${esc(r.branch)}` : ''}</div>
     ${open ? detail(r) : ''}
@@ -283,7 +313,7 @@ function detail(r) {
   if (w.stashes.length) h += `<div class="line"><span class="k">stash</span><span>${w.stashes.map(x => `${cmd('git stash show -p ' + x.ref)} <span class="meta">${esc(x.message)} · ${ago(x.time)}</span>`).join('<br>')}</span></div>`;
   if (w.branches.length) h += `<div class="line"><span class="k">branches</span><span>${w.branches.slice(0, 8).map(b => `<a class="br" data-pp="${esc(r.path)}" data-pt="history" data-pfocus="${esc(b.name)}">${esc(b.name)}</a> ${stateTag(b)} <span class="meta">${ago(b.time)}</span>`).join('<br>')}${w.branches.length > 8 ? `<br><span class="meta">+${w.branches.length - 8} more, open the history</span>` : ''}${w.merged_branches ? `<br><span class="meta">${w.merged_branches} more already merged into ${esc(w.default)}</span>` : ''}</span></div>`;
   if (w.worktrees.length) h += `<div class="line"><span class="k">worktrees</span><span>${w.worktrees.map(t => `${cmd(home(t.path))} <span class="meta">${esc(t.branch || 'detached')}</span>${t.missing ? ' <span class="tag warn">folder missing · git worktree prune</span>' : ''}`).join('<br>')}</span></div>`;
-  h += `<div class="line"><span class="k">open</span><button class="go" data-pp="${esc(r.path)}" data-pt="overview">Details</button><button class="go" data-pp="${esc(r.path)}" data-pt="history">History</button><button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button></div>`;
+  h += `<div class="line"><span class="k">open</span><button class="go primary" data-pp="${esc(r.path)}" data-pt="overview">Details</button><button class="go" data-pp="${esc(r.path)}" data-pt="history">History</button><button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button></div>`;
   for (const i of r.health || []) h += `<div class="line"><span class="k">health</span><span class="tag warn">${esc(i.text)}</span>${i.files.map(f => `<span class="mono">${esc(f)}</span>`).join(' ')}</div>`;
   if (zombie(r)) h += `<div class="line"><span class="k">zombie</span><span class="meta">holds ${r.ports.map(p => ':' + p).join(' ')} but has no commit for ${Math.floor(days(r.last_commit))} days. Stop it from the Ports tab if you forgot about it.</span></div>`;
   if ((r.subprojects || []).length) h += `<div class="line"><span class="k">inside</span><span>${r.subprojects.map(sp => `<b>${esc(sp.name)}</b> <span class="meta">${esc(sp.stack.join(' '))}</span> ${sp.run.map(c => cmd('cd ' + sp.name + ' && ' + c)).join(' ')}`).join('<br>')}</span></div>`;
@@ -422,28 +452,6 @@ async function runSearch() {
   } catch (e) { if (seq === searchSeq) box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
-/* ---------- activity ---------- */
-async function loadActivity() {
-  const box = $('#ares'); ui.actBusy = true; box.innerHTML = '<div class="meta">Loading…</div>';
-  try {
-    ui.act = (await api('/api/activity?' + new URLSearchParams({days: $('#adays').value, mine: $('#amine').checked ? '1' : '0'}))).commits;
-  } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; ui.act = null; }
-  ui.actBusy = false; renderActivity();
-}
-function renderActivity() {
-  const rows = ui.act; if (!rows) return;
-  const counts = {}; for (const c of rows) counts[c.repo] = (counts[c.repo] || 0) + 1;
-  const list = ui.actRepo ? rows.filter(c => c.repo === ui.actRepo) : rows;
-  const chipsH = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([p, n]) => `<button class="chip ${ui.actRepo === p ? 'on' : ''}" data-arepo="${esc(p)}">${esc((repoByPath()[p] || {name: p}).name)} ${n}</button>`).join('');
-  let h = `<div class="bar">${chipsH}</div><div class="meta" style="margin-bottom:6px">${list.length} commits in ${Object.keys(counts).length} repos</div>`, day = '';
-  for (const c of list) {
-    const d = new Date(c.time * 1000), dl = d.toLocaleDateString(undefined, {weekday: 'long', month: 'short', day: 'numeric'});
-    if (dl !== day) { day = dl; h += `<h2>${esc(dl)}</h2>`; }
-    h += `<div class="sr"><span class="mono">${d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span> <span class="tag">${esc(c.name)}</span> <a class="br" data-pp="${esc(c.repo)}" data-pt="history" data-pc="${c.hash}">${esc(c.subject)}</a> <span class="meta">${esc(c.author)}</span></div>`;
-  }
-  $('#ares').innerHTML = h || '<div class="empty">No commits in this period.</div>';
-}
-
 /* ---------- repo page ---------- */
 const pg = {path: null, tab: 'overview', ref: 'HEAD', dir: '', file: null, line: null, focus: '', commit: null, cache: {}};
 const PTABS = [['overview', 'Overview'], ['files', 'Files'], ['history', 'History'], ['branches', 'Branches'], ['deps', 'Dependencies']];
@@ -459,14 +467,19 @@ function openPage(path, tab = 'overview', o = {}) {
   renderPage();
 }
 const closePage = () => $('#page').classList.remove('on');
+const ovOf = path => pg.cache.ovp ||= jget('/api/overview', {path});
+const HOSTS = {'github.com': 'GitHub', 'gitlab.com': 'GitLab', 'bitbucket.org': 'Bitbucket'};
 
 async function renderPage() {
   const r = repoOf(pg.path); if (!r) return closePage();
+  $('#page').classList.toggle('wide', pg.tab === 'files' || pg.tab === 'history');
   $('#ptitle').textContent = r.name;
-  $('#ptags').innerHTML = `<span class="tag">${esc(r.kind)}</span> ${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join(' ')}`;
+  $('#ptags').innerHTML = `<span class="tag">${esc(r.kind)}</span>${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join('')}`;
   $('#ppath').textContent = home(r.path) + (r.branch ? ' · ' + r.branch : '');
   $('#ptabs').innerHTML = PTABS.map(([k, l]) => `<a data-ptab="${k}" class="${pg.tab === k ? 'on' : ''}">${l}</a>`).join('');
   const tab = pg.tab, path = r.path, body = $('#pbody');
+  ovOf(path).then(ov => { const a = $('#plink'); if (pg.path === path && ov.web_url) { a.href = ov.web_url; a.textContent = (HOSTS[ov.web_url.split('/')[2]] || 'Remote') + ' ↗'; a.classList.remove('hide'); } }).catch(() => {});
+  $('#plink').classList.add('hide');
   body.innerHTML = '<div class="empty">Loading…</div>';
   try {
     const html = await ({overview: pOverview, files: pFiles, history: pHistory, branches: pBranches, deps: pDeps})[tab](r);
@@ -476,55 +489,67 @@ async function renderPage() {
 }
 
 async function pOverview(r) {
-  const ov = pg.cache.ov ||= await jget('/api/overview', {path: r.path});
+  const ov = await ovOf(r.path);
   const tot = ov.languages.reduce((a, l) => a + l.bytes, 0) || 1;
-  const go = (f, n) => `<a class="br mono" data-pp="${esc(r.path)}" data-pt="files" data-pf="${esc(f)}">${esc(f)}</a> <span class="meta">${n} recent commits</span>`;
+  const go = (f, n) => `<a class="br mono" data-pp="${esc(r.path)}" data-pt="files" data-pf="${esc(f)}">${esc(f)}</a> <span class="meta">${n}×</span>`;
   const rel = [];
   if (r.same_remote?.length) rel.push(`<div class="line"><span class="k">copies</span><span>Same remote is also cloned at: ${r.same_remote.map(p => link(repoOf(p) || {path: p, name: home(p)})).join(', ')}</span></div>`);
   if (r.remotes?.upstream) rel.push(`<div class="line"><span class="k">upstream</span><span class="mono">${esc(r.remotes.upstream)}</span></div>`);
   if (r.uses?.length) rel.push(`<div class="line"><span class="k">uses</span><span>Depends on your other repos: ${r.uses.map(p => link(repoOf(p))).join(', ')}</span></div>`);
   if (r.used_by?.length) rel.push(`<div class="line"><span class="k">used by</span><span>${r.used_by.map(p => link(repoOf(p))).join(', ')}</span></div>`);
-  return `<div class="stats">
-      <div><b>${ov.commits_total}</b><span>commits</span></div><div><b>${ov.files_total}</b><span>tracked files</span></div>
-      <div><b>${ov.contributors.length}</b><span>contributors</span></div><div><b>${ov.first_commit ? ago(ov.first_commit).replace(' ago', '') : '?'}</b><span>age</span></div>
-      <div><b>${ago(r.last_commit).replace(' ago', '')}</b><span>since last commit</span></div><div><b>${size(r.size)}</b><span>on disk</span></div></div>
-    ${r.summary ? `<p>${esc(r.summary)}</p>` : ''}
-    ${meta(r).note ? `<div class="ai" style="margin-bottom:10px"><b>Your note</b><br>${esc(meta(r).note)}</div>` : ''}
-    ${ov.languages.length ? `<h2>Languages</h2><div class="lbar">${ov.languages.map((l, i) => `<i style="width:${l.bytes / tot * 100}%;background:${LANG_COLOR[i % 8]}" title="${esc(l.name)}"></i>`).join('')}</div>
-      <div class="meta" style="margin-top:6px">${ov.languages.map((l, i) => `<span style="color:${LANG_COLOR[i % 8]}">●</span> ${esc(l.name)} ${(l.bytes / tot * 100).toFixed(1)}% (${l.files})`).join(' &nbsp; ')}</div>` : ''}
-    ${rel.length ? `<h2>Related</h2><div class="detail" style="display:block">${rel.join('')}</div>` : ''}
-    <div class="split2"><div><h2>Contributors</h2>${ov.contributors.map(c => `<div class="sr">${esc(c.name)} <span class="meta">${c.commits}</span></div>`).join('') || '<div class="meta">none</div>'}</div>
-      <div><h2>Tags</h2>${ov.tags.map(t => `<div class="sr">${esc(t.name)} <span class="meta">${ago(t.time)}</span></div>`).join('') || '<div class="meta">no tags</div>'}</div>
-      <div><h2>Most changed files (last 60 commits)</h2>${ov.hot_files.map(f => `<div class="sr">${go(f.file, f.changes)}</div>`).join('') || '<div class="meta">none</div>'}</div></div>
-    ${r.run.length ? `<h2>Run</h2><div class="line">${r.run.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
-    ${r.setup.length ? `<h2>Setup</h2><div class="line">${r.setup.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
-    ${ov.readme ? `<h2>README</h2><pre class="readme">${esc(ov.readme)}</pre>` : ''}`;
+  const person = c => c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="br">${esc(c.name)}</a>` : esc(c.name);
+  return `<div class="ov"><div>
+      <div class="stats" style="margin-top:0">
+        <div><b>${ov.commits_total}</b><span>commits</span></div><div><b>${ov.files_total}</b><span>files</span></div>
+        <div><b>${ov.first_commit ? ago(ov.first_commit).replace(' ago', '') : '?'}</b><span>age</span></div>
+        <div><b>${ago(r.last_commit).replace(' ago', '')}</b><span>last commit</span></div><div><b>${size(r.size)}</b><span>on disk</span></div></div>
+      ${r.summary ? `<p>${esc(r.summary)}</p>` : ''}
+      ${meta(r).note ? `<div class="ai" style="margin-bottom:10px"><b>Your note</b><br>${esc(meta(r).note)}</div>` : ''}
+      ${rel.length ? `<h2>Related</h2><div class="detail" style="display:block;margin-top:0">${rel.join('')}</div>` : ''}
+      ${r.run.length ? `<h2>Run</h2><div class="line">${r.run.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
+      ${r.setup.length ? `<h2>Setup</h2><div class="line">${r.setup.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
+      ${ov.readme ? `<h2>README</h2><pre class="readme">${esc(ov.readme)}</pre>` : ''}</div>
+    <aside>
+      ${ov.languages.length ? `<h2>Languages</h2><div class="lbar">${ov.languages.map((l, i) => `<i style="width:${l.bytes / tot * 100}%;background:${LANG_COLOR[i % 8]}" title="${esc(l.name)}"></i>`).join('')}</div>
+        <div style="margin-top:8px">${ov.languages.slice(0, 6).map((l, i) => `<div class="lg"><span><span class="dot" style="background:${LANG_COLOR[i % 8]}"></span>${esc(l.name)}</span><span class="meta">${(l.bytes / tot * 100).toFixed(1)}%</span></div>`).join('')}</div>` : ''}
+      <h2>Contributors</h2>${ov.contributors.map(c => `<div class="lg"><span>${person(c)}</span><span class="meta">${c.commits}</span></div>`).join('') || '<div class="meta">none</div>'}
+      <h2>Tags</h2>${ov.tags.slice(0, 6).map(t => `<div class="lg"><span>${esc(t.name)}</span><span class="meta">${ago(t.time)}</span></div>`).join('') || '<div class="meta">no tags</div>'}
+      <h2>Most changed files</h2>${ov.hot_files.slice(0, 8).map(f => `<div class="sr">${go(f.file, f.changes)}</div>`).join('') || '<div class="meta">none</div>'}
+    </aside></div>`;
 }
 
 function refOptions(r) {
   const w = W(r), names = ['HEAD', w.default, r.branch, ...w.branches.map(b => b.name)].filter(Boolean);
   return [...new Set(names)].map(n => `<option ${n === pg.ref ? 'selected' : ''}>${esc(n)}</option>`).join('');
 }
+const IC = {
+  dir: '<svg class="ic" width="15" height="15" viewBox="0 0 16 16"><path d="M1.5 3.5h4.2l1.4 1.6h7.4v7.4h-13z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+  file: '<svg class="ic" width="15" height="15" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9zM9.5 1.5v3h3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+  up: '<svg class="ic" width="15" height="15" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
 async function pFiles(r) {
   const {entries} = await jget('/api/tree', {path: r.path, ref: pg.ref, dir: pg.dir});
   const parts = pg.dir ? pg.dir.split('/') : [];
-  const crumbs = `<a class="br" data-dir="">root</a>` + parts.map((p, i) => ` / <a class="br" data-dir="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</a>`).join('');
-  let viewer = '<div class="meta">Pick a file.</div>';
+  const crumbs = `<a class="br" data-dir="">${esc(r.name)}</a>` + parts.map((p, i) => ` / <a class="br" data-dir="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</a>`).join('');
+  let viewer = '<div class="panel"><div class="bar2"><span class="meta">Pick a file to read it.</span></div></div>';
   if (pg.file) {
+    let inner;
     try {
       const f = await jget('/api/file', {path: r.path, ref: pg.ref, file: pg.file});
-      if (f.binary) viewer = `<div class="meta">${esc(pg.file)}: binary file, ${size(f.size)}</div>`;
-      else {
-        const lines = f.text.split('\n').slice(0, 6000);
-        viewer = `<div class="meta" style="margin-bottom:6px"><b>${esc(pg.file)}</b> · ${size(f.size)}${f.truncated || lines.length >= 6000 ? ' · truncated' : ''}</div><div class="code">${lines.map((l, i) => `<div class="cl ${pg.line === i + 1 ? 'hit' : ''}" ${pg.line === i + 1 ? 'data-hit' : ''}><i>${i + 1}</i><span>${esc(l) || ' '}</span></div>`).join('')}</div>`;
-      }
-    } catch (e) { viewer = `<div class="empty">${esc(e.message)}</div>`; }
+      const lines = f.binary ? [] : f.text.split('\n').slice(0, 6000);
+      inner = `<div class="bar2">${IC.file}<b class="crumbs" style="color:var(--fg)">${esc(pg.file)}</b><span class="meta">${f.binary ? 'binary · ' : lines.length + ' lines · '}${size(f.size)}${f.truncated || lines.length >= 6000 ? ' · truncated' : ''}</span>
+        <button class="go" data-copy="${esc(pg.file)}">Copy path</button></div>` +
+        (f.binary ? '<div class="empty" style="padding:16px">Binary file, not shown.</div>'
+          : `<div class="code">${lines.map((l, i) => `<div class="cl ${pg.line === i + 1 ? 'hit' : ''}" ${pg.line === i + 1 ? 'data-hit' : ''}><i>${i + 1}</i><span>${esc(l) || ' '}</span></div>`).join('')}</div>`);
+    } catch (e) { inner = `<div class="bar2"><span class="meta">${esc(e.message)}</span></div>`; }
+    viewer = `<div class="panel">${inner}</div>`;
   }
-  const up = pg.dir ? `<div class="ent" data-dir="${esc(parts.slice(0, -1).join('/'))}"><span>..</span></div>` : '';
-  return `<div class="split"><div><div class="bar"><select data-ref>${refOptions(r)}</select><span class="meta">${crumbs}</span></div>
-    <div class="list">${up}${entries.map(e => { const full = (pg.dir ? pg.dir + '/' : '') + e.name;
-      return e.type === 'tree' ? `<div class="ent" data-dir="${esc(full)}"><span>${esc(e.name)}/</span></div>`
-        : `<div class="ent ${pg.file === full ? 'sel' : ''}" data-file="${esc(full)}"><span>${esc(e.name)}</span><span class="meta">${size(e.size)}</span></div>`; }).join('') || '<div class="meta">empty</div>'}</div></div>
+  const up = pg.dir ? `<div class="ent" data-dir="${esc(parts.slice(0, -1).join('/'))}">${IC.up}<span class="nm">..</span></div>` : '';
+  return `<div class="split"><div class="panel">
+      <div class="bar2"><select data-ref>${refOptions(r)}</select><span class="crumbs">${crumbs}</span></div>
+      <div class="list">${up}${entries.map(e => { const full = (pg.dir ? pg.dir + '/' : '') + e.name;
+        return e.type === 'tree' ? `<div class="ent dir" data-dir="${esc(full)}">${IC.dir}<span class="nm">${esc(e.name)}</span></div>`
+          : `<div class="ent ${pg.file === full ? 'sel' : ''}" data-file="${esc(full)}">${IC.file}<span class="nm">${esc(e.name)}</span><span class="meta">${size(e.size)}</span></div>`; }).join('') || '<div class="empty" style="padding:12px">Empty folder.</div>'}</div></div>
     <div>${viewer}</div></div>`;
 }
 
@@ -579,6 +604,7 @@ function afterPage(tab) {
 }
 $('#page').addEventListener('click', e => {
   const t = e.target;
+  const cp = t.closest('[data-copy]'); if (cp) { navigator.clipboard?.writeText(cp.dataset.copy); return toast('Copied'); }
   if (t.closest('#pclose')) return closePage();
   const tabEl = t.closest('[data-ptab]'); if (tabEl) { pg.tab = tabEl.dataset.ptab; pg.focus = ''; pg.commit = null; return renderPage(); }
   const dir = t.closest('[data-dir]'); if (dir) { pg.dir = dir.dataset.dir; pg.file = null; pg.line = null; return renderPage(); }
@@ -587,6 +613,31 @@ $('#page').addEventListener('click', e => {
   const dl = t.closest('[data-deplink]'); if (dl) { closePage(); ui.tab = 'deps'; ui.dchip = 'all'; $('#q').value = dl.dataset.deplink; saveUi(); return render(); }
 });
 $('#page').addEventListener('change', e => { if (e.target.hasAttribute('data-ref')) { pg.ref = e.target.value; renderPage(); } });
+
+/* ---------- settings ---------- */
+let cfg = {settings: {}, editors: [], terminals: []};
+async function loadCfg() { try { cfg = await api('/api/settings'); } catch {} }
+function renderCfg() {
+  const st = cfg.settings, cur = st.editor || '';
+  const opt = (name, val, label, checked) => `<label class="opt"><input type="radio" name="${name}" value="${esc(val)}" ${checked ? 'checked' : ''}>${esc(label)}</label>`;
+  const first = cfg.editors[0]?.id;
+  $('#sbody').innerHTML = `<h2 style="margin-top:0">Editor</h2>
+    ${cfg.editors.map(e => opt('editor', e.id, e.label, cur === e.id || (!cur && e.id === first))).join('') || '<div class="meta">No known editor found on this machine.</div>'}
+    ${opt('editor', 'custom', 'Custom command', cur === 'custom')}
+    <input id="ecustom" placeholder="for example: code -r" value="${esc(st.editor_custom || '')}" style="width:100%;margin-top:4px">
+    <h2>Terminal</h2>
+    ${cfg.terminals.length ? `<select id="eterm" style="width:100%">${cfg.terminals.map(t => `<option value="${esc(t.id)}" ${st.terminal === t.id ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>` : '<div class="meta">No terminal found.</div>'}
+    <div class="meta" style="margin-top:12px">Only editors and terminals installed on this machine are listed. Saved automatically.</div>`;
+}
+async function saveCfg(patch) { try { cfg.settings = (await api('/api/settings', patch)).settings; toast('Saved'); } catch (e) { toast(e.message); } }
+$('#cfg').addEventListener('click', async () => { $('#sbody').innerHTML = '<div class="meta">Looking for editors and terminals…</div>'; $('#settings').classList.add('on'); await loadCfg(); renderCfg(); });
+$('#sclose').addEventListener('click', () => $('#settings').classList.remove('on'));
+$('#settings').addEventListener('click', e => { if (e.target.id === 'settings') $('#settings').classList.remove('on'); });
+$('#settings').addEventListener('change', e => {
+  if (e.target.name === 'editor') saveCfg({editor: e.target.value, editor_custom: $('#ecustom').value});
+  if (e.target.id === 'eterm') saveCfg({terminal: e.target.value});
+  if (e.target.id === 'ecustom') saveCfg({editor: 'custom', editor_custom: e.target.value});
+});
 
 /* ---------- events ---------- */
 async function act(fn) { try { await fn(); } catch (e) { toast(e.message); } render(); }
@@ -597,7 +648,6 @@ document.addEventListener('click', e => {
   const pp = t.closest('[data-pp]');
   if (pp && !t.closest('#page [data-ptab]')) { const d = pp.dataset; return openPage(d.pp, d.pt || 'overview', {file: d.pf, line: +d.pl || null, commit: d.pc, focus: d.pfocus}); }
   if (t.dataset.dchip) { ui.dchip = t.dataset.dchip; saveUi(); return render(); }
-  if (t.dataset.arepo !== undefined) { ui.actRepo = ui.actRepo === t.dataset.arepo ? null : t.dataset.arepo; return renderActivity(); }
   const dep = t.closest('[data-dep]'); if (dep && !t.closest('a')) { const k = dep.dataset.dep; ui.openDeps.has(k) ? ui.openDeps.delete(k) : ui.openDeps.add(k); return renderDeps($('#q').value.toLowerCase()); }
   if (t.dataset.open && !row) return act(async () => { const o = await api('/api/open', {path: pg.path, target: t.dataset.open}); toast('Opened in ' + o.with); });
   if (t.dataset.chip) { ui.chip = t.dataset.chip; saveUi(); return render(); }
@@ -633,6 +683,7 @@ document.addEventListener('focusout', e => {
 document.addEventListener('keydown', e => {
   if (e.key === '/' && ui.tab === 'search' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); return $('#sq').focus(); }
   if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); $('#q').focus(); }
+  if (e.key === 'Escape' && $('#settings').classList.contains('on')) return $('#settings').classList.remove('on');
   if (e.key === 'Escape' && $('#page').classList.contains('on')) return closePage();
   if (e.key === 'Escape') { $('#q').value = ''; $('#q').blur(); render(); }
 });
@@ -640,7 +691,6 @@ $('#q').addEventListener('input', render);
 $('#sq').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 350); });
 $('#sq').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(searchTimer); runSearch(); } });
 document.querySelectorAll('[data-scope], #sre').forEach(x => x.addEventListener('change', runSearch));
-$('#adays').addEventListener('change', loadActivity); $('#amine').addEventListener('change', loadActivity);
 $('#sort').addEventListener('change', () => { saveUi(); render(); });
 $('#re').addEventListener('click', rescan);
 try { const s = JSON.parse(localStorage.getItem('gr-ui') || '{}').sort; if (s) $('#sort').value = s; } catch {}

@@ -39,6 +39,32 @@ def check_rel(rel):
     return rel
 
 
+WEB_HOSTS = ("github.com", "gitlab.com", "bitbucket.org")
+
+
+def web_url(path):
+    """https page of the repo for well-known hosts, from origin (or the first remote)."""
+    from .scanner import norm_remote
+    remotes = _git(path, "remote", "-v").split()
+    urls = [remotes[i + 1] for i in range(0, len(remotes) - 1) if remotes[i + 1].count("/") or ":" in remotes[i + 1]]
+    origin = _git(path, "remote", "get-url", "origin").strip() or (urls[0] if urls else "")
+    n = norm_remote(origin)
+    return "https://" + n if n.split("/")[0] in WEB_HOSTS and n.count("/") >= 2 else None
+
+
+def contributor_url(name, email, web):
+    """GitHub profile for a contributor when it can be told from a noreply address or the repo owner's name."""
+    if not web or not web.startswith("https://github.com/"):
+        return None
+    m = re.match(r"^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$", email or "")
+    user = m.group(1) if m else ""
+    if not user and name.lower() == web.split("/")[3].lower():
+        user = web.split("/")[3]
+    if not user:
+        return None
+    return "https://github.com/apps/" + user[:-5] if user.endswith("[bot]") else "https://github.com/" + user
+
+
 def overview(path):
     p = Path(path)
     files = [f for f in _git(p, "ls-files", "-z").split("\0") if f]
@@ -56,11 +82,14 @@ def overview(path):
         item["files"] += 1
         item["bytes"] += size
     languages = sorted(langs.values(), key=lambda x: -x["bytes"])[:8]
+    web = web_url(p)
     contributors = []
-    for line in _git(p, "shortlog", "-sn", "HEAD").splitlines()[:10]:
-        n, _, name = line.strip().partition("\t")
+    for line in _git(p, "shortlog", "-sne", "HEAD").splitlines()[:10]:
+        n, _, who = line.strip().partition("\t")
+        m = re.match(r"^(.*?)\s*<([^>]*)>$", who)
+        name, email = (m.group(1), m.group(2)) if m else (who, "")
         if n.isdigit():
-            contributors.append({"name": name, "commits": int(n)})
+            contributors.append({"name": name, "commits": int(n), "url": contributor_url(name, email, web)})
     tags = []
     for line in _git(p, "tag", "--sort=-creatordate", "--format=%(refname:short)\t%(creatordate:unix)").splitlines()[:12]:
         name, _, ts = line.partition("\t")
@@ -79,7 +108,7 @@ def overview(path):
             break
         except OSError:
             continue
-    return {"languages": languages, "contributors": contributors, "tags": tags, "files_total": len(files),
+    return {"web_url": web, "languages": languages, "contributors": contributors, "tags": tags, "files_total": len(files),
             "commits_total": int(total) if total.isdigit() else 0, "first_commit": int(first) if first.isdigit() else None,
             "hot_files": recent, "readme": readme}
 
@@ -169,26 +198,3 @@ def search(repos, q, scope=("code", "files", "commits"), regex=False):
     with ThreadPoolExecutor(8) as ex:
         results = list(ex.map(lambda r: search_repo(r, q, scope, regex), repos))
     return [r for r in results if r["code"] or r["files"] or r["commits"]]
-
-
-def activity(repos, days=30, mine=False):
-    since = f"--since={int(days)}.days.ago"
-
-    def one(r):
-        args = ["log", "--branches", since, "-n", "150", "--format=%H%x1f%ct%x1f%an%x1f%s"]
-        if mine:
-            email = _git(r["path"], "config", "user.email").strip()
-            if not email:
-                return []
-            args.append(f"--author={email}")
-        out = []
-        for line in _git(r["path"], *args).splitlines():
-            h, ts, author, subject = (line.split("\x1f") + [""] * 4)[:4]
-            if ts.isdigit():
-                out.append({"repo": r["path"], "name": r["name"], "hash": h, "time": int(ts), "author": author, "subject": subject[:200]})
-        return out
-
-    with ThreadPoolExecutor(8) as ex:
-        rows = [c for chunk in ex.map(one, repos) for c in chunk]
-    rows.sort(key=lambda c: -c["time"])
-    return rows[:1500]

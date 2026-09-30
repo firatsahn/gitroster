@@ -205,7 +205,7 @@ class DepsAndRepoInfoTest(unittest.TestCase):
         r = scanner.scan([self.root])["repos"]
         self.assertEqual({x["name"]: len(x["same_remote"]) for x in r}, {"one": 1, "two": 1})
 
-    def test_overview_tree_file_commit_search_activity(self):
+    def test_overview_tree_file_commit_search(self):
         from gitroster import repoinfo
         p = make_repo(self.root, "demo", {"src/app.py": "print('needle here')\n", "README.md": "# Demo\n", "logo.bin": "\0\0"})
         ov = repoinfo.overview(p)
@@ -224,8 +224,29 @@ class DepsAndRepoInfoTest(unittest.TestCase):
         self.assertEqual(repoinfo.search([repo], "app.py")[0]["files"], ["src/app.py"])
         self.assertEqual(repoinfo.search([repo], "init")[0]["commits"][0]["subject"], "init")
         self.assertEqual(repoinfo.search([repo], "a"), [])  # too short
-        self.assertEqual(len(repoinfo.activity([repo], 7)), 1)
-        self.assertEqual(len(repoinfo.activity([repo], 7, mine=True)), 0)  # no user.email configured in the test repo
+
+    def test_contributor_links_and_web_url(self):
+        from gitroster import repoinfo
+        web = "https://github.com/me/thing"
+        self.assertEqual(repoinfo.contributor_url("Me", "1+me2@users.noreply.github.com", web), "https://github.com/me2")
+        self.assertEqual(repoinfo.contributor_url("ME", "x@y.z", web), "https://github.com/me")
+        self.assertEqual(repoinfo.contributor_url("bot[bot]", "1+bot[bot]@users.noreply.github.com", web), "https://github.com/apps/bot")
+        self.assertIsNone(repoinfo.contributor_url("Someone", "s@y.z", web))
+        self.assertIsNone(repoinfo.contributor_url("Me", "", "https://gitlab.com/me/thing"))
+        p = make_repo(self.root, "w")
+        git(p, "remote", "add", "origin", "git@github.com:me/thing.git")
+        self.assertEqual(repoinfo.web_url(p), web)
+
+    def test_settings_and_editor_choice(self):
+        from gitroster import opener
+        cmd, label = opener.editor_cmd({"editor": "custom", "editor_custom": "myed --wait"})
+        self.assertEqual((cmd, label), (["myed", "--wait"], "custom editor"))
+        with tempfile.TemporaryDirectory() as c, tempfile.TemporaryDirectory() as st:
+            store = Store(c, st)
+            store.update_settings(editor="pycharm", terminal="kitty", junk="x")
+            self.assertEqual(store.settings(), {"editor": "pycharm", "terminal": "kitty"})
+        d = opener.detect()
+        self.assertEqual(set(d), {"editors", "terminals"})
 
     def test_path_and_ref_validation(self):
         from gitroster import repoinfo

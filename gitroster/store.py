@@ -53,6 +53,17 @@ class Store:
             self._save(self.config / "meta.json", data)
             return entry
 
+    def settings(self):
+        return self._load(self.config / "settings.json")
+
+    def update_settings(self, **fields):
+        allowed = {"editor", "editor_custom", "terminal"}
+        with self.lock:
+            data = self._load(self.config / "settings.json")
+            data.update({k: v for k, v in fields.items() if k in allowed})
+            self._save(self.config / "settings.json", data)
+            return data
+
     def cached_scan(self):
         return self._load(self.state / "scan.json")
 

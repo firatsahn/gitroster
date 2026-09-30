@@ -9,9 +9,9 @@
 - Projects inside repo subfolders are listed with their run commands.
 - Forgotten work per repo: stashes, branches that only exist locally or are not merged, extra worktrees. Filter chips, row tags and a detail section.
 - Commit graph of all branches in a modal; click a branch to jump to its tip.
-- Open a repo in your editor, terminal or file manager (`GITROSTER_EDITOR` to choose the editor).
+- Open a repo in your editor, terminal or file manager. Settings detects installed editors and terminals and remembers your choice (`GITROSTER_EDITOR` still works as a fallback).
 - Repo detail page: overview, files, history with commit diffs, branches, dependencies.
-- Search across all repos (code, file names, commit messages), activity timeline, cross-repo dependency view with version drift.
+- Search across all repos (code, file names, commit messages), cross-repo dependency view with version drift.
 - Related repos: duplicate clones of one remote, and local packages that depend on each other.
 - Markdown export of the whole inventory (`/api/export.md`, Export button).
 

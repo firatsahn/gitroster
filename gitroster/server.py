@@ -15,7 +15,7 @@ from . import agent, export, opener, procs, repoinfo, scanner
 from .store import Store
 
 STATIC = Path(__file__).parent / "static"
-READ = {"graph", "overview", "tree", "file", "commit", "search", "activity"}
+READ = {"graph", "overview", "tree", "file", "commit", "search"}
 TYPES = {".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
 
 
@@ -26,6 +26,10 @@ class App:
         self.scan = self.store.cached_scan()
         self.scanning = False
         self.lock = threading.Lock()
+        threading.Thread(target=opener.detect, daemon=True).start()  # warm the editor/terminal cache
+
+    def settings(self):
+        return {"settings": self.store.settings(), **opener.detect()}
 
     def repo(self, path):
         return next((r for r in self.scan.get("repos", []) if r["path"] == path), None)
@@ -107,11 +111,9 @@ def make_handler(app):
             q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
             repos = [r for r in app.scan.get("repos", []) if not app.store.meta().get(r["path"], {}).get("ignored")]
             try:
-                if name in ("search", "activity"):
-                    if name == "search":
-                        scope = tuple(x for x in q.get("scope", "code,files,commits").split(",") if x in ("code", "files", "commits"))
-                        return self.ok({"results": repoinfo.search(repos, q.get("q", ""), scope, q.get("regex") == "1")})
-                    return self.ok({"commits": repoinfo.activity(repos, min(int(q.get("days", 30)), 365), q.get("mine") == "1")})
+                if name == "search":
+                    scope = tuple(x for x in q.get("scope", "code,files,commits").split(",") if x in ("code", "files", "commits"))
+                    return self.ok({"results": repoinfo.search(repos, q.get("q", ""), scope, q.get("regex") == "1")})
                 p = q.get("path", "")
                 if not app.repo(p):
                     return self.err(404, "unknown repo")
@@ -143,6 +145,8 @@ def make_handler(app):
                 return self.ok(app.do_scan())
             if path.startswith("/api/") and path.split("/")[2] in READ:
                 return self.read_api(path.split("/")[2])
+            if path == "/api/settings":
+                return self.ok(app.settings())
             if path == "/api/export.md":
                 return self.send(200, export.markdown(app.scan, app.store.meta()), "text/markdown; charset=utf-8")
             if path == "/api/ports":
@@ -171,10 +175,13 @@ def make_handler(app):
                         return self.err(404, "not a listening process")
                     os.kill(pid, signal.SIGTERM)
                     return self.ok({"ok": True})
+                if path == "/api/settings":
+                    app.store.update_settings(**{k: str(body[k])[:300] for k in ("editor", "editor_custom", "terminal") if k in body})
+                    return self.ok(app.settings())
                 if path == "/api/open":
                     if not app.repo(body["path"]):
                         return self.err(404, "unknown repo")
-                    return self.ok({"with": opener.open_repo(body["path"], body["target"])})
+                    return self.ok({"with": opener.open_repo(body["path"], body["target"], app.store.settings())})
                 if path == "/api/start":
                     return self.ok(app.start(body["path"], body["cmd"]))
                 if path == "/api/meta":
