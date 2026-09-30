@@ -53,7 +53,7 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 **Look inside any repo**
 - A detail page per repo: overview (languages, contributors linked to GitHub, tags, most changed files, README), file browser with a viewer, commit history with a graph and per-commit diffs, branches, dependencies
 - **Search** code, file names and commit messages across every repo at once (plain text or regex)
-- **Dependencies**: which repo uses which package and version, flagged when the same package has different versions in different repos
+- Search also finds **packages**: which repo uses a package and at which version, flagged when versions differ between repos
 - **Related repos**: copies of the same remote, and local repos that depend on each other
 - Everything is read-only
 

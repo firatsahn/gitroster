@@ -57,14 +57,16 @@ h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute
 .stats b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em}
 .stats span{color:var(--mute);font-size:12px}
 .empty{color:var(--mute);padding:12px 0}
+.empty-hero{padding:8px 0}.empty-hero .lead{font-size:16px;margin:0 0 4px}
+.chip.more{border-style:dashed}
 a{color:inherit}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.on{opacity:1}
 .hide{display:none}
-#page,#settings{position:fixed;inset:0;background:var(--bg);z-index:10;display:none;overflow:auto}
+#page,#settings{position:fixed;inset:0;background:var(--bg);z-index:10;display:none;overflow-y:scroll}
+html{overflow-y:scroll}
 #page.on{display:block}
 .pm{max-width:var(--pw,920px);margin:0 auto;padding:32px 16px 80px}
-#page.wide{--pw:1120px}
 .ph{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
 #ptags .tag{margin-left:4px}
 #ptabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:16px}
@@ -150,23 +152,22 @@ a.br{cursor:pointer;text-decoration:underline dotted}
   <nav id="tabs">
     <a data-tab="repos" class="on">Repos</a>
     <a data-tab="search">Search</a>
-    <a data-tab="deps">Dependencies</a>
     <a data-tab="ports">Ports</a>
   </nav>
 
   <section id="repos">
     <div class="bar" id="chips"></div>
+    <div class="bar" id="chips2"></div>
     <div class="bar"><span class="meta">Sort</span>
       <select id="sort"><option value="recent">last commit</option><option value="size">size</option><option value="name">name</option></select>
     </div>
     <div id="repolist"></div>
   </section>
   <section id="search" class="hide">
-    <div class="bar"><input id="sq" class="big" placeholder="Search code, file names and commit messages in every repo" autocomplete="off">
-      <label><input type="checkbox" data-scope="code" checked>code</label><label><input type="checkbox" data-scope="files" checked>files</label><label><input type="checkbox" data-scope="commits" checked>commits</label><label><input type="checkbox" id="sre">regex</label></div>
-    <div id="sres"><div class="meta">Type at least 2 characters. Searches tracked files, file names and commit messages of every repo.</div></div>
+    <div class="bar"><input id="sq" class="big" placeholder="Search all your repos" autocomplete="off">
+      <label><input type="checkbox" data-scope="code" checked>code</label><label><input type="checkbox" data-scope="files" checked>files</label><label><input type="checkbox" data-scope="commits" checked>commits</label><label><input type="checkbox" data-scope="packages" checked>packages</label><label><input type="checkbox" id="sre">regex</label></div>
+    <div id="sres"></div>
   </section>
-  <section id="deps" class="hide"></section>
   <section id="ports" class="hide"></section>
 </main>
 <div id="page"><div class="pm">
@@ -192,9 +193,10 @@ const ago = t => { const d = days(t); return d === Infinity ? 'no commits' : d <
 const DORMANT = 90;
 
 let S = {repos: [], envs: [], ports: [], containers: [], meta: {}};
-let ui = {tab: 'repos', chip: 'all', dchip: 'all', open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}};
-try { Object.assign(ui, JSON.parse(localStorage.getItem('gr-ui') || '{}'), {open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}}); } catch {}
-const saveUi = () => { try { localStorage.setItem('gr-ui', JSON.stringify({tab: ui.tab, chip: ui.chip, dchip: ui.dchip, sort: $('#sort').value})); } catch {} };
+let ui = {tab: 'repos', chip: 'all', more: false, open: new Set(), busy: new Set(), logs: {}};
+try { Object.assign(ui, JSON.parse(localStorage.getItem('gr-ui') || '{}'), {open: new Set(), busy: new Set(), logs: {}}); } catch {}
+if (!['repos', 'search', 'ports'].includes(ui.tab)) ui.tab = 'repos';
+const saveUi = () => { try { localStorage.setItem('gr-ui', JSON.stringify({tab: ui.tab, chip: ui.chip, more: ui.more, sort: $('#sort').value})); } catch {} };
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2200); }
 async function api(path, body) {
@@ -240,20 +242,26 @@ function render() {
   const total = S.repos.reduce((a, r) => a + (r.size || 0), 0);
   $('#sub').textContent = S.scanned ? `${S.repos.length} repos · ${S.ports.length} ports · ${size(total)}` : 'no scan yet';
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === ui.tab));
-  for (const id of ['repos', 'search', 'deps', 'ports']) $('#' + id).classList.toggle('hide', id !== ui.tab);
-  $('#q').style.display = ui.tab === 'search' ? 'none' : '';
+  for (const id of ['repos', 'search', 'ports']) $('#' + id).classList.toggle('hide', id !== ui.tab);
+  $('#q').style.visibility = ui.tab === 'search' ? 'hidden' : '';
   if (ui.tab === 'repos') renderRepos(q);
   if (ui.tab === 'ports') renderPorts(q);
-  if (ui.tab === 'deps') renderDeps(q);
+  if (ui.tab === 'search' && !$('#sres').innerHTML) runSearch();
 }
 
+const PRIMARY_CHIPS = ['all', 'running', 'uncommitted', 'unpushed'];
 function chips() {
   const R = S.repos.filter(r => !meta(r).ignored);
   const n = {all: R.length, running: R.filter(running).length, uncommitted: R.filter(r => r.dirty).length,
-    unpushed: R.filter(r => r.ahead).length, mine: R.filter(r => r.kind === 'mine').length, fork: R.filter(r => r.kind === 'fork').length, clone: R.filter(r => r.kind === 'clone').length, local: R.filter(r => r.kind === 'local').length, dormant: R.filter(dormant).length, issues: R.filter(r => (r.health || []).length).length, stashed: R.filter(r => nStash(r)).length, branches: R.filter(r => nLocal(r)).length, worktrees: R.filter(r => nTrees(r)).length, copies: R.filter(r => (r.same_remote || []).length).length, pinned: R.filter(r => meta(r).pinned).length,
+    unpushed: R.filter(r => r.ahead).length, mine: R.filter(r => r.kind === 'mine').length, fork: R.filter(r => r.kind === 'fork').length,
+    clone: R.filter(r => r.kind === 'clone').length, local: R.filter(r => r.kind === 'local').length, dormant: R.filter(dormant).length,
+    issues: R.filter(r => (r.health || []).length).length, stashed: R.filter(nStash).length, branches: R.filter(nLocal).length,
+    worktrees: R.filter(nTrees).length, copies: R.filter(r => (r.same_remote || []).length).length, pinned: R.filter(r => meta(r).pinned).length,
     ignored: S.repos.filter(r => meta(r).ignored).length};
-  $('#chips').innerHTML = Object.entries(n).map(([k, v]) =>
-    `<button class="chip ${ui.chip === k ? 'on' : ''}" data-chip="${k}">${k} ${v}</button>`).join('');
+  const btn = k => `<button class="chip ${ui.chip === k ? 'on' : ''}" data-chip="${k}">${k} ${n[k]}</button>`;
+  const rest = Object.keys(n).filter(k => !PRIMARY_CHIPS.includes(k) && (n[k] > 0 || ui.chip === k));  // empty filters are noise
+  $('#chips').innerHTML = PRIMARY_CHIPS.map(btn).join('') + (rest.length ? `<button class="chip more" data-more>${ui.more ? 'Fewer' : 'More'}</button>` : '');
+  $('#chips2').innerHTML = ui.more ? rest.map(btn).join('') : (rest.includes(ui.chip) ? btn(ui.chip) : '');
 }
 
 function renderRepos(q) {
@@ -402,27 +410,6 @@ const drifts = p => repoCount(p) > 1 && new Set(p.items.map(i => i.spec).filter(
 const repoCount = p => new Set(p.items.map(i => i.repo.path)).size;
 const link = (r, tab = 'overview', extra = '') => `<a class="br" data-pp="${esc(r.path)}" data-pt="${tab}" ${extra}>${esc(r.name)}</a>`;
 
-function renderDeps(q) {
-  const all = [...depIndex().values()];
-  const ecos = [...new Set(all.map(p => p.eco))].sort();
-  const f = ui.dchip;
-  let list = all.filter(p => (f === 'all' || f === 'shared' && repoCount(p) > 1 || f === 'drift' && drifts(p) || f === p.eco) &&
-    (!q || p.name.toLowerCase().includes(q)));
-  list.sort((a, b) => repoCount(b) - repoCount(a) || a.name.localeCompare(b.name));
-  const chipsH = ['all', 'shared', 'drift', ...ecos].map(k => `<button class="chip ${f === k ? 'on' : ''}" data-dchip="${k}">${k}</button>`).join('');
-  const shown = list.slice(0, 250);
-  let h = `<div class="bar">${chipsH}</div><div class="meta" style="margin-bottom:8px">${all.length} packages across ${S.repos.length} repos. <b>shared</b> = used by 2+ repos, <b>drift</b> = shared but with different versions.</div>`;
-  h += '<table>' + (shown.map(p => {
-    const n = repoCount(p), open = ui.openDeps.has(p.key), sp = specs(p);
-    return `<tr><td><div class="top" data-dep="${esc(p.key)}" style="cursor:pointer"><b>${esc(p.name)}</b> <span class="tag">${esc(p.eco)}</span>
-      ${drifts(p) ? '<span class="tag warn">versions differ</span>' : ''}<span class="sp"></span><span class="meta">${n} repo${n > 1 ? 's' : ''}</span></div>
-      <div class="meta">${sp.slice(0, 6).map(esc).join(' · ')}${sp.length > 6 ? ' …' : ''}</div>
-      ${open ? '<div class="detail" style="display:block">' + p.items.map(i => `<div class="line">${link(i.repo, 'deps')} <code>${esc(i.spec || 'any')}</code>${i.dev ? ' <span class="tag">dev</span>' : ''}${i.where ? ` <span class="meta">in ${esc(i.where)}/</span>` : ''}</div>`).join('') + '</div>' : ''}</td></tr>`;
-  }).join('') || '<tr><td class="empty">No packages match.</td></tr>') + '</table>';
-  if (list.length > shown.length) h += `<div class="meta" style="margin-top:8px">Showing ${shown.length} of ${list.length}. Type in the filter to narrow down.</div>`;
-  $('#deps').innerHTML = h;
-}
-
 /* ---------- search ---------- */
 let searchSeq = 0, searchTimer = null;
 const hl = (text, q, regex) => {
@@ -432,23 +419,49 @@ const hl = (text, q, regex) => {
   while ((j = low.indexOf(ql, i)) >= 0) { out += esc(text.slice(i, j)) + '<mark>' + esc(text.slice(j, j + q.length)) + '</mark>'; i = j + q.length; }
   return out + esc(text.slice(i));
 };
+const recent = () => { try { return JSON.parse(localStorage.getItem('gr-recent') || '[]'); } catch { return []; } };
+const remember = q => { try { localStorage.setItem('gr-recent', JSON.stringify([q, ...recent().filter(x => x !== q)].slice(0, 8))); } catch {} };
+function searchFor(q, scopes, regex = false) {
+  $('#sq').value = q; $('#sre').checked = regex;
+  document.querySelectorAll('[data-scope]').forEach(x => { x.checked = !scopes || scopes.includes(x.dataset.scope); });
+  runSearch();
+}
+function searchHome() {
+  const pk = [...depIndex().values()].sort((a, b) => repoCount(b) - repoCount(a)).slice(0, 4).map(p => p.name);
+  const ex = q => `<button class="chip" data-sq="${esc(q)}">${esc(q)}</button>`, rc = recent();
+  return `<div class="empty-hero">
+    <p class="lead">Search everything you have written, across all ${S.repos.filter(r => !meta(r).ignored).length} repos at once.</p>
+    <div class="meta">It looks in tracked files, file names, commit messages and package names.</div>
+    <h2>Try</h2><div class="bar">${['TODO', 'FIXME', 'localhost:', 'password', 'api_key'].map(ex).join('')}<button class="chip" data-sq="def \\w+\\(" data-regex="1">regex: def \\w+\\(</button></div>
+    ${pk.length ? `<h2>Packages you use</h2><div class="bar">${pk.map(ex).join('')}</div>` : ''}
+    ${rc.length ? `<h2>Recent</h2><div class="bar">${rc.map(ex).join('')}</div>` : ''}
+    <h2>Good to know</h2>
+    <div class="meta">Matching ignores case. Click a result to open that file at the right line, or that commit with its diff. Turn on <b>regex</b> for patterns.</div></div>`;
+}
 async function runSearch() {
   const q = $('#sq').value.trim(), regex = $('#sre').checked;
-  const scope = [...document.querySelectorAll('[data-scope]')].filter(x => x.checked).map(x => x.dataset.scope).join(',');
-  const box = $('#sres'), seq = ++searchSeq;
-  if (q.length < 2) { box.innerHTML = '<div class="meta">Type at least 2 characters. Searches tracked files, file names and commit messages of every repo.</div>'; return; }
+  const on = [...document.querySelectorAll('[data-scope]')].filter(x => x.checked).map(x => x.dataset.scope);
+  const scope = on.filter(x => x !== 'packages').join(','), box = $('#sres'), seq = ++searchSeq;
+  if (q.length < 2) { box.innerHTML = searchHome(); return; }
   box.innerHTML = '<div class="meta">Searching…</div>';
+  let re = null; try { re = regex ? new RegExp(q, 'i') : null; } catch { box.innerHTML = '<div class="empty">That regex is not valid.</div>'; return; }
+  const pkgs = on.includes('packages') ? [...depIndex().values()].filter(p => re ? re.test(p.name) : p.name.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => repoCount(b) - repoCount(a)).slice(0, 12) : [];
   try {
-    const {results} = await api('/api/search?' + new URLSearchParams({q, scope, regex: regex ? '1' : '0'}));
+    const {results} = scope ? await api('/api/search?' + new URLSearchParams({q, scope, regex: regex ? '1' : '0'})) : {results: []};
     if (seq !== searchSeq) return;
-    const hits = results.reduce((a, r) => a + r.code.length + r.files.length + r.commits.length, 0);
-    box.innerHTML = `<div class="meta" style="margin-bottom:8px">${hits} matches in ${results.length} repos</div>` + results.map(r => `<div class="row">
+    remember(q);
+    const hits = results.reduce((a, r) => a + r.code.length + r.files.length + r.commits.length, 0) + pkgs.length;
+    box.innerHTML = `<div class="meta" style="margin-bottom:8px">${hits} matches in ${results.length} repos${pkgs.length ? ` and ${pkgs.length} packages` : ''}</div>` +
+      (pkgs.length ? `<div class="row"><div class="top"><span class="name">Packages</span><span class="meta">used by your repos</span></div>${pkgs.map(p => `<div class="sr"><b>${hl(p.name, q, regex)}</b> <span class="tag">${esc(p.eco)}</span>${drifts(p) ? ' <span class="tag warn">versions differ</span>' : ''}
+        <div class="meta">${p.items.map(i => `${link(i.repo, 'deps')} <code>${esc(i.spec || 'any')}</code>${i.dev ? ' dev' : ''}`).join(' &nbsp; ')}</div></div>`).join('')}</div>` : '') +
+      results.map(r => `<div class="row">
       <div class="top"><span class="name">${link({path: r.path, name: r.name})}</span><span class="path">${esc(home(r.path))}</span></div>
       ${r.files.map(f => `<div class="sr"><span class="tag">file</span> <a class="br" data-pp="${esc(r.path)}" data-pt="files" data-pf="${esc(f)}">${hl(f, q, regex)}</a></div>`).join('')}
       ${r.code.map(c => `<div class="sr"><a class="br mono" data-pp="${esc(r.path)}" data-pt="files" data-pf="${esc(c.file)}" data-pl="${c.line}">${esc(c.file)}:${c.line}</a> <span class="snip">${hl(c.text, q, regex)}</span></div>`).join('')}
       ${r.capped ? '<div class="meta">more matches in this repo, refine the search</div>' : ''}
       ${r.commits.map(c => `<div class="sr"><span class="tag">commit</span> <a class="br" data-pp="${esc(r.path)}" data-pt="history" data-pc="${c.hash}">${hl(c.subject, q, regex)}</a> <span class="meta">${c.hash.slice(0, 7)} · ${ago(c.time)}</span></div>`).join('')}
-    </div>`).join('') || '<div class="empty">No matches.</div>';
+    </div>`).join('') || (pkgs.length ? '' : '<div class="empty">No matches.</div>');
   } catch (e) { if (seq === searchSeq) box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -472,7 +485,7 @@ const HOSTS = {'github.com': 'GitHub', 'gitlab.com': 'GitLab', 'bitbucket.org': 
 
 async function renderPage() {
   const r = repoOf(pg.path); if (!r) return closePage();
-  $('#page').classList.toggle('wide', pg.tab === 'files' || pg.tab === 'history');
+  $('#page').scrollTop = 0;
   $('#ptitle').textContent = r.name;
   $('#ptags').innerHTML = `<span class="tag">${esc(r.kind)}</span>${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join('')}`;
   $('#ppath').textContent = home(r.path) + (r.branch ? ' · ' + r.branch : '');
@@ -610,7 +623,7 @@ $('#page').addEventListener('click', e => {
   const dir = t.closest('[data-dir]'); if (dir) { pg.dir = dir.dataset.dir; pg.file = null; pg.line = null; return renderPage(); }
   const file = t.closest('[data-file]'); if (file) { pg.file = file.dataset.file; pg.line = null; return renderPage(); }
   const gr = t.closest('.gr'); if (gr) return loadCommit(gr.dataset.hash);
-  const dl = t.closest('[data-deplink]'); if (dl) { closePage(); ui.tab = 'deps'; ui.dchip = 'all'; $('#q').value = dl.dataset.deplink; saveUi(); return render(); }
+  const dl = t.closest('[data-deplink]'); if (dl) { closePage(); ui.tab = 'search'; saveUi(); render(); return searchFor(dl.dataset.deplink, ['packages']); }
 });
 $('#page').addEventListener('change', e => { if (e.target.hasAttribute('data-ref')) { pg.ref = e.target.value; renderPage(); } });
 
@@ -647,8 +660,8 @@ document.addEventListener('click', e => {
   if (t.closest('[data-tab]')) { ui.tab = t.closest('[data-tab]').dataset.tab; saveUi(); return render(); }
   const pp = t.closest('[data-pp]');
   if (pp && !t.closest('#page [data-ptab]')) { const d = pp.dataset; return openPage(d.pp, d.pt || 'overview', {file: d.pf, line: +d.pl || null, commit: d.pc, focus: d.pfocus}); }
-  if (t.dataset.dchip) { ui.dchip = t.dataset.dchip; saveUi(); return render(); }
-  const dep = t.closest('[data-dep]'); if (dep && !t.closest('a')) { const k = dep.dataset.dep; ui.openDeps.has(k) ? ui.openDeps.delete(k) : ui.openDeps.add(k); return renderDeps($('#q').value.toLowerCase()); }
+  if (t.dataset.sq !== undefined) return searchFor(t.dataset.sq, null, t.dataset.regex === '1');
+  if (t.hasAttribute('data-more')) { ui.more = !ui.more; saveUi(); return render(); }
   if (t.dataset.open && !row) return act(async () => { const o = await api('/api/open', {path: pg.path, target: t.dataset.open}); toast('Opened in ' + o.with); });
   if (t.dataset.chip) { ui.chip = t.dataset.chip; saveUi(); return render(); }
   if (t.dataset.kill) return act(async () => {
