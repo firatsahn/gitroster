@@ -9,7 +9,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import agent, procs, scanner
+from . import agent, export, procs, scanner
 from .store import Store
 
 STATIC = Path(__file__).parent / "static"
@@ -106,6 +106,8 @@ def make_handler(app):
                 return self.ok(app.state())
             if path == "/api/scan":
                 return self.ok(app.do_scan())
+            if path == "/api/export.md":
+                return self.send(200, export.markdown(app.scan, app.store.meta()), "text/markdown; charset=utf-8")
             if path == "/api/ports":
                 ports, containers = app.live_ports()
                 return self.ok({"ports": ports, "containers": containers})

@@ -71,6 +71,7 @@ a{color:inherit}
     <span class="sub" id="sub">loading…</span>
     <span class="sp"></span>
     <input id="q" placeholder="filter  ( / )" autocomplete="off">
+    <a href="/api/export.md" download="gitroster.md"><button>Export .md</button></a>
     <button id="re">Rescan</button>
   </header>
 
@@ -117,6 +118,7 @@ async function api(path, body) {
 const meta = r => S.meta[r.path] || {};
 const running = r => r.ports.length > 0;
 const dormant = r => !running(r) && days(r.last_commit) > DORMANT;
+const zombie = r => running(r) && days(r.last_commit) > DORMANT && !meta(r).pinned;
 const repoByPath = () => Object.fromEntries(S.repos.map(r => [r.path, r]));
 
 /* ---------- data ---------- */
@@ -154,7 +156,7 @@ function render() {
 function chips() {
   const R = S.repos.filter(r => !meta(r).ignored);
   const n = {all: R.length, running: R.filter(running).length, uncommitted: R.filter(r => r.dirty).length,
-    unpushed: R.filter(r => r.ahead).length, mine: R.filter(r => r.kind === 'mine').length, fork: R.filter(r => r.kind === 'fork').length, clone: R.filter(r => r.kind === 'clone').length, local: R.filter(r => r.kind === 'local').length, dormant: R.filter(dormant).length, pinned: R.filter(r => meta(r).pinned).length,
+    unpushed: R.filter(r => r.ahead).length, mine: R.filter(r => r.kind === 'mine').length, fork: R.filter(r => r.kind === 'fork').length, clone: R.filter(r => r.kind === 'clone').length, local: R.filter(r => r.kind === 'local').length, dormant: R.filter(dormant).length, issues: R.filter(r => (r.health || []).length).length, pinned: R.filter(r => meta(r).pinned).length,
     ignored: S.repos.filter(r => meta(r).ignored).length};
   $('#chips').innerHTML = Object.entries(n).map(([k, v]) =>
     `<button class="chip ${ui.chip === k ? 'on' : ''}" data-chip="${k}">${k} ${v}</button>`).join('');
@@ -163,7 +165,7 @@ function chips() {
 function renderRepos(q) {
   chips();
   const sort = $('#sort').value;
-  const f = {all: r => true, running, uncommitted: r => r.dirty, unpushed: r => r.ahead > 0, mine: r => r.kind === 'mine', fork: r => r.kind === 'fork', clone: r => r.kind === 'clone', local: r => r.kind === 'local', dormant, pinned: r => meta(r).pinned, ignored: r => true}[ui.chip];
+  const f = {all: r => true, running, uncommitted: r => r.dirty, unpushed: r => r.ahead > 0, mine: r => r.kind === 'mine', fork: r => r.kind === 'fork', clone: r => r.kind === 'clone', local: r => r.kind === 'local', dormant, issues: r => (r.health || []).length, pinned: r => meta(r).pinned, ignored: r => true}[ui.chip];
   let list = S.repos.filter(r => (ui.chip === 'ignored') === !!meta(r).ignored && f(r) &&
     (!q || `${r.name} ${r.path} ${r.stack.join(' ')} ${r.summary} ${meta(r).note || ''}`.toLowerCase().includes(q)));
   list.sort((a, b) => (meta(b).pinned ? 1 : 0) - (meta(a).pinned ? 1 : 0) || (sort === 'size' ? (b.size || 0) - (a.size || 0) : sort === 'name' ? a.name.localeCompare(b.name) : (b.last_commit || 0) - (a.last_commit || 0)));
@@ -180,6 +182,8 @@ function repoRow(r) {
       ${r.dirty ? '<span class="tag warn">uncommitted</span>' : ''}
       ${r.ahead ? `<span class="tag warn">↑${r.ahead} unpushed</span>` : ''}
       ${dormant(r) ? '<span class="tag">dormant</span>' : ''}
+      ${zombie(r) ? '<span class="tag warn">zombie</span>' : ''}
+      ${(r.health || []).length ? `<span class="tag warn">${r.health.length} issue${r.health.length > 1 ? 's' : ''}</span>` : ''}
       <span class="tag">${esc(r.kind)}</span>
       ${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join('')}
       <span class="sp"></span>
@@ -206,6 +210,9 @@ function detail(r) {
   if (r.cmds.length) h += `<div class="line"><span class="k">README</span>${r.cmds.map(cmd).join(' ')}</div>`;
   if (r.expected_ports.length) h += `<div class="line"><span class="k">expects</span><span class="meta">${r.expected_ports.map(p => ':' + p).join(' ')} (from README)</span></div>`;
   if (ports.length) h += `<div class="line"><span class="k">listening</span>${ports.map(p => `<a href="http://localhost:${p.port}" target="_blank" rel="noopener">:${p.port}</a> <span class="meta">${esc(p.proc)}</span>`).join(' · ')}</div>`;
+  for (const i of r.health || []) h += `<div class="line"><span class="k">health</span><span class="tag warn">${esc(i.text)}</span>${i.files.map(f => `<span class="mono">${esc(f)}</span>`).join(' ')}</div>`;
+  if (zombie(r)) h += `<div class="line"><span class="k">zombie</span><span class="meta">holds ${r.ports.map(p => ':' + p).join(' ')} but has no commit for ${Math.floor(days(r.last_commit))} days. Stop it from the Ports tab if you forgot about it.</span></div>`;
+  if ((r.subprojects || []).length) h += `<div class="line"><span class="k">inside</span><span>${r.subprojects.map(sp => `<b>${esc(sp.name)}</b> <span class="meta">${esc(sp.stack.join(' '))}</span> ${sp.run.map(c => cmd('cd ' + sp.name + ' && ' + c)).join(' ')}`).join('<br>')}</span></div>`;
   if (r.big_files.length) h += `<div class="line"><span class="k">large</span><span>${r.big_files.map(f => `<span class="mono">${esc(f.path)}</span> <span class="meta">${size(f.size)}</span>`).join('<br>')}${r.big_total > r.big_files.reduce((a, f) => a + f.size, 0) ? `<br><span class="meta">${size(r.big_total)} in total</span>` : ''}</span></div>`;
   h += `<div class="line"><span class="k">AI</span><button class="go" data-explain ${busy.has('ai' + r.path) ? 'disabled' : ''}>${busy.has('ai' + r.path) ? 'Asking…' : m.ai ? 'Ask again' : 'Explain how to run'}</button><span class="meta">uses your local agent · nothing is run</span></div>`;
   if (m.ai) h += `<div class="ai">${esc(m.ai)}</div><div class="meta">AI-generated, unverified · ${ago(m.ai_at)}</div>`;
@@ -223,6 +230,7 @@ function renderPorts(q) {
     <td class="mono"><b><a href="http://localhost:${p.port}" target="_blank" rel="noopener">${p.port}</a></b></td>
     <td>${p.repo ? esc(rp[p.repo].name) : '<span class="meta">unknown</span>'}
       ${p.exposed ? '<span class="tag warn">all interfaces</span>' : ''}
+      ${p.repo && zombie(rp[p.repo]) ? '<span class="tag warn">zombie</span>' : ''}
       <div class="path">${esc(p.proc)} · pid ${p.pid} · up ${ago(p.since)}</div>
       <div class="path" title="${esc(p.cmd)}">${esc(p.cmd.slice(0, 110))}</div></td>
     <td class="r"><button data-kill="${p.pid}" data-port="${p.port}">Stop</button></td></tr>`).join('') : '<tr><td class="empty">Nothing listening.</td></tr>') + '</table>';

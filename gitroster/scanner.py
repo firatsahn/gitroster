@@ -195,6 +195,46 @@ def big_files(path, limit=5):
     return total, [{"path": f, "size": s} for s, f in found[:limit]]
 
 
+SECRET_FILES = re.compile(r"(^|/)(\.env(\.(?!example|sample|template)[\w.-]+)?|id_rsa|id_ed25519|[^/]+\.(pem|key|p12|pfx))$")
+
+
+def ignored(path, name):
+    return subprocess.run(["git", "-C", str(path), "check-ignore", "-q", name], capture_output=True).returncode == 0
+
+
+def health(path):
+    """Cheap local checks, no network: secrets that git tracks, .env files nobody ignores."""
+    p, issues = Path(path), []
+    tracked = run(["git", "-C", str(p), "ls-files"], 10).splitlines()
+    leaked = [f for f in tracked if SECRET_FILES.search(f)]
+    if leaked:
+        issues.append({"kind": "tracked-secret", "text": "secret-looking files are tracked by git", "files": leaked[:5]})
+    loose = [f for f in (".env", ".env.local") if (p / f).is_file() and f not in tracked and not ignored(p, f)]
+    if loose:
+        issues.append({"kind": "unignored-env", "text": ".env exists but is not in .gitignore", "files": loose})
+    if tracked and not (p / ".gitignore").exists() and any(x in detect(p)[0] for x in ("node", "python")):
+        issues.append({"kind": "no-gitignore", "text": "no .gitignore", "files": []})
+    return issues
+
+
+def subprojects(path, limit=8):
+    """Projects living in subfolders of a repo (monorepos, nested apps)."""
+    found = []
+    try:
+        dirs = sorted(d for d in Path(path).iterdir() if d.is_dir())
+    except OSError:
+        return found
+    for d in dirs:
+        if d.name in PRUNE or d.name.startswith("."):
+            continue
+        stack, _, runs = detect(d)
+        if not stack:
+            continue
+        if runs:
+            found.append({"path": str(d), "name": d.name, "stack": stack, "run": runs})
+    return found[:limit]
+
+
 def env_python_version(v):
     m = re.search(r"^version(?:_info)?\s*=\s*(\S+)", read(Path(v) / "pyvenv.cfg"), re.M)
     return m.group(1) if m else ""
@@ -214,6 +254,8 @@ def analyze_repo(p, tool):
     }
     r.update(git_info(p))
     r.update(readme(p))
+    r["health"] = health(p)
+    r["subprojects"] = subprojects(p)
     r["size"] = dir_size(p)
     r["big_total"], r["big_files"] = big_files(p)
     for item in r["reclaimable"]:

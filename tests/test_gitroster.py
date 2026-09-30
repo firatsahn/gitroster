@@ -62,6 +62,30 @@ class ScannerTest(unittest.TestCase):
         self.assertEqual(info["branch"], "release/v1.2")
         self.assertTrue(info["dirty"])
 
+    def test_health_flags_tracked_and_unignored_secrets(self):
+        make_repo(self.root, "leaky", {".env": "KEY=1", "package.json": "{}", "deploy/server.pem": "x"})
+        make_repo(self.root, "safe", {".gitignore": ".env\n", ".env.example": "KEY=", "package.json": "{}"})
+        (self.root / "safe" / ".env").write_text("KEY=1")
+        by = {r["name"]: r for r in scanner.scan([self.root])["repos"]}
+        self.assertEqual([i["kind"] for i in by["leaky"]["health"]], ["tracked-secret", "no-gitignore"])
+        self.assertEqual(by["leaky"]["health"][0]["files"], [".env", "deploy/server.pem"])
+        self.assertEqual(by["safe"]["health"], [])
+
+    def test_unignored_env_file(self):
+        p = make_repo(self.root, "x", {".gitignore": "*.log\n", "package.json": "{}"})
+        (p / ".env").write_text("A=1")
+        self.assertEqual([i["kind"] for i in scanner.health(p)], ["unignored-env"])
+
+    def test_subprojects_and_export(self):
+        make_repo(self.root, "mono", {"web/package.json": json.dumps({"scripts": {"dev": "vite"}}), "docs/a.md": "x"})
+        s = scanner.scan([self.root])
+        (r,) = s["repos"]
+        self.assertEqual([(x["name"], x["run"]) for x in r["subprojects"]], [("web", ["npm run dev"])])
+        from gitroster import export
+        md = export.markdown(s, {r["path"]: {"note": "my note"}})
+        self.assertIn("## mono", md)
+        self.assertIn("my note", md)
+
     def test_venv_is_linked_and_used_in_run_command(self):
         p = make_repo(self.root, "api", {"main.py": "print(1)", "requirements.txt": "flask\n"})
         venv = p / ".venv"

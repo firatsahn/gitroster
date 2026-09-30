@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Health check: tracked secret-looking files, `.env` not ignored, missing `.gitignore`.
+- Zombie warning for repos that hold a port but have no recent commits.
+- Projects inside repo subfolders are listed with their run commands.
+- Markdown export of the whole inventory (`/api/export.md`, Export button).
+
 ## 0.1.0
 
 - Scan folders for git repos, Python venvs / conda envs, reclaimable folders and large files.
