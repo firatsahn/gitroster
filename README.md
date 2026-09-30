@@ -50,6 +50,14 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - Flags for **uncommitted changes**, **unpushed commits**, **no remote** and **dormant** (no commit in 90+ days and nothing running)
 - Notes, pin and ignore, kept in `~/.config/gitroster/` (`~/Library/Application Support/gitroster` on macOS, `%APPDATA%\gitroster` on Windows)
 
+**Look inside any repo**
+- A detail page per repo: overview (languages, contributors, tags, most changed files, README), file browser with a viewer, commit history with a graph and per-commit diffs, branches, dependencies
+- **Search** code, file names and commit messages across every repo at once (plain text or regex)
+- **Activity**: one timeline of commits across all repos, optionally only yours
+- **Dependencies**: which repo uses which package and version, flagged when the same package has different versions in different repos
+- **Related repos**: copies of the same remote, and local repos that depend on each other
+- Everything is read-only
+
 **Work you might forget**
 - Stashes, branches that exist only on this machine or are not merged yet, and extra worktrees, with filters for each
 - A commit graph of every branch (click a branch to jump to it)

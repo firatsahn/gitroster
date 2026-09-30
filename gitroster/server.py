@@ -8,12 +8,14 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 
-from . import agent, export, opener, procs, scanner
+from . import agent, export, opener, procs, repoinfo, scanner
 from .store import Store
 
 STATIC = Path(__file__).parent / "static"
+READ = {"graph", "overview", "tree", "file", "commit", "search", "activity"}
 TYPES = {".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
 
 
@@ -101,6 +103,32 @@ def make_handler(app):
         def err(self, code, msg):
             self.send(code, json.dumps({"error": msg}))
 
+        def read_api(self, name):
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            repos = [r for r in app.scan.get("repos", []) if not app.store.meta().get(r["path"], {}).get("ignored")]
+            try:
+                if name in ("search", "activity"):
+                    if name == "search":
+                        scope = tuple(x for x in q.get("scope", "code,files,commits").split(",") if x in ("code", "files", "commits"))
+                        return self.ok({"results": repoinfo.search(repos, q.get("q", ""), scope, q.get("regex") == "1")})
+                    return self.ok({"commits": repoinfo.activity(repos, min(int(q.get("days", 30)), 365), q.get("mine") == "1")})
+                p = q.get("path", "")
+                if not app.repo(p):
+                    return self.err(404, "unknown repo")
+                if name == "graph":
+                    return self.ok({"commits": scanner.graph(p, min(int(q.get("n", 300)), 1000))})
+                if name == "overview":
+                    return self.ok(repoinfo.overview(p))
+                if name == "tree":
+                    return self.ok({"entries": repoinfo.tree(p, q.get("ref"), q.get("dir"))})
+                if name == "file":
+                    return self.ok(repoinfo.read_file(p, q.get("ref"), q.get("file")))
+                if name == "commit":
+                    return self.ok(repoinfo.commit(p, q.get("hash")))
+            except ValueError as e:
+                return self.err(400, str(e))
+            self.err(404, "not found")
+
         def do_GET(self):
             if self.headers.get("Host") not in hosts:  # DNS rebinding guard
                 return self.err(403, "bad host")
@@ -113,13 +141,8 @@ def make_handler(app):
                 return self.ok(app.state())
             if path == "/api/scan":
                 return self.ok(app.do_scan())
-            if path == "/api/graph":
-                from urllib.parse import unquote
-                q = dict(x.split("=", 1) for x in self.path.partition("?")[2].split("&") if "=" in x)
-                p = unquote(q.get("path", ""))
-                if not app.repo(p):
-                    return self.err(404, "unknown repo")
-                return self.ok({"commits": scanner.graph(p, min(int(q.get("n", 300) or 300), 1000))})
+            if path.startswith("/api/") and path.split("/")[2] in READ:
+                return self.read_api(path.split("/")[2])
             if path == "/api/export.md":
                 return self.send(200, export.markdown(app.scan, app.store.meta()), "text/markdown; charset=utf-8")
             if path == "/api/ports":

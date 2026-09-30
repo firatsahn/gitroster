@@ -170,6 +170,75 @@ class ScannerTest(unittest.TestCase):
         self.assertEqual([p["repo"] for p in ports], [one, two, None])
 
 
+class DepsAndRepoInfoTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name).resolve()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_manifest_parsers(self):
+        from gitroster import deps
+        name, d = deps.pyproject('[project]\nname = "My_Pkg"\ndependencies = [\n "requests>=2.0",\n "rich[x]~=13 ; python_version>\'3.8\'",\n]\n'
+                                 '[project.optional-dependencies]\ndev = ["pytest>=7"]\n')
+        self.assertEqual(name, "my-pkg")
+        self.assertEqual([(x["name"], x["spec"], x["dev"]) for x in d],
+                         [("requests", ">=2.0", False), ("rich", "~=13", False), ("pytest", ">=7", True)])
+        self.assertEqual(deps.cargo('[package]\nname="c"\n[dependencies]\nserde = { version = "1" }\n')[1][0]["spec"], "1")
+        self.assertEqual(deps.go_mod("module m\nrequire (\n\ta.b/c v1.0.0 // indirect\n)\n")[1][0]["name"], "a.b/c")
+        self.assertEqual(deps.package_json('{"name":"x","dependencies":{"a":"^1"},"devDependencies":{"b":"2"}}')[1][1]["dev"], True)
+        self.assertEqual(deps.requirements("# c\nflask==3.0\n-r other.txt\n")[0]["spec"], "==3.0")
+
+    def test_relations_between_repos(self):
+        make_repo(self.root, "mylib", {"package.json": json.dumps({"name": "my-lib"})})
+        make_repo(self.root, "myapp", {"package.json": json.dumps({"name": "my-app", "dependencies": {"my-lib": "^1", "react": "18"}})})
+        by = {r["name"]: r for r in scanner.scan([self.root])["repos"]}
+        self.assertEqual(by["myapp"]["uses"], [by["mylib"]["path"]])
+        self.assertEqual(by["mylib"]["used_by"], [by["myapp"]["path"]])
+        self.assertEqual(scanner.norm_remote("git@github.com:A/b.git"), scanner.norm_remote("https://github.com/a/b"))
+
+    def test_duplicate_clones_share_a_remote(self):
+        for n in ("one", "two"):
+            p = make_repo(self.root, n)
+            git(p, "remote", "add", "origin", "git@github.com:me/thing.git")
+        r = scanner.scan([self.root])["repos"]
+        self.assertEqual({x["name"]: len(x["same_remote"]) for x in r}, {"one": 1, "two": 1})
+
+    def test_overview_tree_file_commit_search_activity(self):
+        from gitroster import repoinfo
+        p = make_repo(self.root, "demo", {"src/app.py": "print('needle here')\n", "README.md": "# Demo\n", "logo.bin": "\0\0"})
+        ov = repoinfo.overview(p)
+        self.assertEqual(ov["languages"][0]["name"], "Python")
+        self.assertEqual(ov["commits_total"], 1)
+        self.assertEqual([e["name"] for e in repoinfo.tree(p, "HEAD", "")], ["src", "logo.bin", "README.md"])
+        self.assertEqual(repoinfo.read_file(p, "HEAD", "src/app.py")["text"], "print('needle here')\n")
+        self.assertTrue(repoinfo.read_file(p, "HEAD", "logo.bin")["binary"])
+        h = scanner.graph(p)[0]["hash"]
+        c = repoinfo.commit(p, h)
+        self.assertEqual(sorted(f["file"] for f in c["files"]), ["README.md", "logo.bin", "src/app.py"])
+        self.assertIn("needle", c["diff"])
+        repo = {"path": str(p), "name": "demo"}
+        hits = repoinfo.search([repo], "NEEDLE")
+        self.assertEqual(hits[0]["code"][0]["file"], "src/app.py")
+        self.assertEqual(repoinfo.search([repo], "app.py")[0]["files"], ["src/app.py"])
+        self.assertEqual(repoinfo.search([repo], "init")[0]["commits"][0]["subject"], "init")
+        self.assertEqual(repoinfo.search([repo], "a"), [])  # too short
+        self.assertEqual(len(repoinfo.activity([repo], 7)), 1)
+        self.assertEqual(len(repoinfo.activity([repo], 7, mine=True)), 0)  # no user.email configured in the test repo
+
+    def test_path_and_ref_validation(self):
+        from gitroster import repoinfo
+        for bad in ("../x", "-x", "a/../b", "a\\b"):
+            with self.assertRaises(ValueError):
+                repoinfo.check_rel(bad)
+        for bad in ("-x", "a..b", "x y", ""):
+            with self.assertRaises(ValueError):
+                repoinfo.check_ref(bad)
+        with self.assertRaises(ValueError):
+            repoinfo.commit(self.root, "--output=/tmp/x")
+
+
 class PlatformParsersTest(unittest.TestCase):
     def test_parse_ss(self):
         out = 'LISTEN 0 128 127.0.0.1:8765 0.0.0.0:* users:(("python3",pid=42,fd=3))\nLISTEN 0 4096 [::]:22 [::]:*\n'

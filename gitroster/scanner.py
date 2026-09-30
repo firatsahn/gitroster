@@ -9,6 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from . import deps as depmod
 from . import procs
 
 PRUNE = {
@@ -118,6 +119,11 @@ def git_info(path):
     info["remote"] = run(["git", "-C", str(path), "remote", "get-url", "origin"], 5).strip()
     last = run(["git", "-C", str(path), "log", "-1", "--format=%ct"], 5).strip()
     info["last_commit"] = int(last) if last.isdigit() else None
+    info["remotes"] = {}
+    for line in run(["git", "-C", str(path), "remote", "-v"], 5).splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            info["remotes"].setdefault(parts[0], parts[1])
     info["kind"] = repo_kind(path, info["remote"])
     return info
 
@@ -324,6 +330,8 @@ def analyze_repo(p, tool):
     }
     r.update(git_info(p))
     r.update(readme(p))
+    d = depmod.collect(p)
+    r["pkg"], r["deps"] = d["names"], d["deps"]
     r["work"] = forgotten_work(p)
     r["health"] = health(p)
     r["subprojects"] = subprojects(p)
@@ -363,6 +371,49 @@ def finalize(repo):
     repo["run"] = [c.replace("{py}", py) for c in repo["run"]]
 
 
+def norm_remote(url):
+    """git@github.com:a/b.git, ssh://git@github.com:22/a/b and https://github.com/a/b.git -> github.com/a/b"""
+    u = (url or "").strip().lower()
+    m = re.match(r"^(?:[a-z+]+://)?(?:[^@/]+@)?([^/:]+)(?::\d+)?[:/](.+)$", u)
+    if not m:
+        return u
+    path = re.sub(r"\.git$", "", m.group(2).strip("/"))
+    return f"{m.group(1)}/{path}"
+
+
+def main_remote(r):
+    remotes = r.get("remotes", {})
+    return remotes.get("origin") or next(iter(remotes.values()), "")
+
+
+GENERIC_PKGS = {"app", "main", "test", "tests", "src", "lib", "utils", "common", "core", "api", "web", "server", "client"}
+
+
+def relate(repos):
+    """Fill same_remote (copies of one repo), uses / used_by (local packages that depend on each other)."""
+    by_remote, by_pkg = {}, {}
+    for r in repos:
+        key = norm_remote(main_remote(r))
+        r["same_remote"] = []
+        r["uses"], r["used_by"] = [], []
+        if key:
+            by_remote.setdefault(key, []).append(r["path"])
+        for n in r.get("pkg", []):
+            if len(n["name"]) >= 3 and n["name"].lower() not in GENERIC_PKGS:
+                by_pkg.setdefault((n["eco"], n["name"].lower()), set()).add(r["path"])
+    for r in repos:
+        key = norm_remote(main_remote(r))
+        r["same_remote"] = [x for x in by_remote.get(key, []) if x != r["path"]] if key else []
+        for d in r.get("deps", []):
+            for other in by_pkg.get((d["eco"], d["name"].lower()), ()):
+                if other != r["path"] and other not in r["uses"]:
+                    r["uses"].append(other)
+    index = {r["path"]: r for r in repos}
+    for r in repos:
+        for other in r["uses"]:
+            index[other]["used_by"].append(r["path"])
+
+
 def scan(roots, progress=None):
     roots = [str(Path(r).expanduser()) for r in roots]
     repo_paths, env_paths = walk(roots)
@@ -379,6 +430,7 @@ def scan(roots, progress=None):
             o["envs"].append(e)
     for r in repos:
         finalize(r)
+    relate(repos)
     ports = procs.listening()
     containers = procs.docker_containers()
     procs.link(ports, containers, repos, envs)

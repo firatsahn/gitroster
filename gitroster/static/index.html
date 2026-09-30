@@ -61,10 +61,41 @@ a{color:inherit}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.on{opacity:1}
 .hide{display:none}
-#graph{position:fixed;inset:0;background:var(--bg);z-index:10;display:none;flex-direction:column}
-#graph.on{display:flex}
-#graph .gh{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
-#graph .gb{flex:1;overflow:auto;padding:4px 16px 40px}
+#page{position:fixed;inset:0;background:var(--bg);z-index:10;display:none;flex-direction:column}
+#page.on{display:flex}
+.ph{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+#ptabs{padding:0 16px;margin:0}
+.pb{flex:1;overflow:auto;padding:12px 16px 40px}
+.split{display:grid;grid-template-columns:minmax(240px,32%) 1fr;gap:16px;align-items:start}
+.split.hist{grid-template-columns:1fr 1fr}
+.split2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+@media(max-width:820px){.split,.split.hist{grid-template-columns:1fr}}
+.gl{overflow:auto;max-height:calc(100vh - 150px)}
+.cp{max-height:calc(100vh - 150px);overflow:auto}
+.list{max-height:calc(100vh - 210px);overflow:auto}
+.ent{display:flex;justify-content:space-between;gap:8px;padding:3px 6px;border-radius:4px;cursor:pointer}
+.ent:hover,.ent.sel{background:var(--card)}
+.code{font:12px/1.5 ui-monospace,monospace;background:var(--card);border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:calc(100vh - 220px)}
+.cl,.diff div{white-space:pre}
+.cl{display:flex}
+.cl i{flex:none;width:52px;text-align:right;padding-right:12px;color:var(--mute);font-style:normal;user-select:none}
+.cl.hit{background:rgba(245,158,11,.28)}
+.diff .add{background:rgba(22,163,74,.16)}.diff .del{background:rgba(220,38,38,.14)}.diff .hunk{color:var(--mute)}
+details{margin:8px 0}summary{cursor:pointer;font:12px ui-monospace,monospace}
+pre.msg,pre.readme{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;margin:6px 0}
+pre.readme{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px;max-height:420px;overflow:auto}
+.lbar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line)}.lbar i{display:block}
+.sr{padding:3px 0;overflow:hidden;text-overflow:ellipsis}
+.snip{font:12px ui-monospace,monospace;color:var(--mute)}
+mark{background:rgba(245,158,11,.35);color:inherit;border-radius:2px}
+.big{width:100%;max-width:440px}
+input[type=checkbox]{width:auto}
+label{display:inline-flex;gap:4px;align-items:center;color:var(--mute);font-size:12px}
+.gr.sel{background:var(--card)}
+.gr{cursor:pointer;min-width:0}
+.gr .refs{flex:none;max-width:40%;overflow:hidden;display:flex}
+.gr .s{flex:1;min-width:0}
+.hist .gr .a{display:none}
 .gr{display:flex;align-items:center;height:26px;white-space:nowrap}
 .gr svg{flex:none}
 .gr.focus{background:var(--card);outline:1px solid var(--fg)}
@@ -90,6 +121,9 @@ a.br{cursor:pointer;text-decoration:underline dotted}
 
   <nav id="tabs">
     <a data-tab="repos" class="on">Repos</a>
+    <a data-tab="search">Search</a>
+    <a data-tab="activity">Activity</a>
+    <a data-tab="deps">Dependencies</a>
     <a data-tab="ports">Ports</a>
   </nav>
 
@@ -100,9 +134,22 @@ a.br{cursor:pointer;text-decoration:underline dotted}
     </div>
     <div id="repolist"></div>
   </section>
+  <section id="search" class="hide">
+    <div class="bar"><input id="sq" class="big" placeholder="Search code, file names and commit messages in every repo" autocomplete="off">
+      <label><input type="checkbox" data-scope="code" checked>code</label><label><input type="checkbox" data-scope="files" checked>files</label><label><input type="checkbox" data-scope="commits" checked>commits</label><label><input type="checkbox" id="sre">regex</label></div>
+    <div id="sres"><div class="meta">Type at least 2 characters. Searches tracked files, file names and commit messages of every repo.</div></div>
+  </section>
+  <section id="activity" class="hide">
+    <div class="bar"><select id="adays"><option value="7">last 7 days</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option><option value="365">last year</option></select>
+      <label><input type="checkbox" id="amine">only my commits</label></div>
+    <div id="ares"></div>
+  </section>
+  <section id="deps" class="hide"></section>
   <section id="ports" class="hide"></section>
 </main>
-<div id="graph"><div class="gh"><b id="gtitle"></b><span class="meta" id="gmeta"></span><span class="sp"></span><button id="gclose">Close (Esc)</button></div><div class="gb" id="gbody"></div></div>
+<div id="page"><div class="ph"><div><b id="ptitle"></b> <span id="ptags"></span><div class="path" id="ppath"></div></div><span class="sp"></span>
+  <button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button><button id="pclose">Close (Esc)</button></div>
+  <nav id="ptabs"></nav><div class="pb" id="pbody"></div></div>
 <div id="toast"></div>
 
 <script>
@@ -115,9 +162,9 @@ const ago = t => { const d = days(t); return d === Infinity ? 'no commits' : d <
 const DORMANT = 90;
 
 let S = {repos: [], envs: [], ports: [], containers: [], meta: {}};
-let ui = {tab: 'repos', chip: 'all', open: new Set(), busy: new Set(), logs: {}};
-try { Object.assign(ui, JSON.parse(localStorage.getItem('gr-ui') || '{}'), {open: new Set(), busy: new Set(), logs: {}}); } catch {}
-const saveUi = () => { try { localStorage.setItem('gr-ui', JSON.stringify({tab: ui.tab, chip: ui.chip, sort: $('#sort').value})); } catch {} };
+let ui = {tab: 'repos', chip: 'all', dchip: 'all', open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}, act: null, actRepo: null};
+try { Object.assign(ui, JSON.parse(localStorage.getItem('gr-ui') || '{}'), {open: new Set(), openDeps: new Set(), busy: new Set(), logs: {}, act: null, actRepo: null}); } catch {}
+const saveUi = () => { try { localStorage.setItem('gr-ui', JSON.stringify({tab: ui.tab, chip: ui.chip, dchip: ui.dchip, sort: $('#sort').value})); } catch {} };
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2200); }
 async function api(path, body) {
@@ -163,15 +210,18 @@ function render() {
   const total = S.repos.reduce((a, r) => a + (r.size || 0), 0);
   $('#sub').textContent = S.scanned ? `${S.repos.length} repos · ${S.ports.length} ports · ${size(total)}` : 'no scan yet';
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === ui.tab));
-  for (const id of ['repos', 'ports']) $('#' + id).classList.toggle('hide', id !== ui.tab);
+  for (const id of ['repos', 'search', 'activity', 'deps', 'ports']) $('#' + id).classList.toggle('hide', id !== ui.tab);
+  $('#q').style.display = ui.tab === 'search' || ui.tab === 'activity' ? 'none' : '';
   if (ui.tab === 'repos') renderRepos(q);
   if (ui.tab === 'ports') renderPorts(q);
+  if (ui.tab === 'deps') renderDeps(q);
+  if (ui.tab === 'activity' && !ui.act && !ui.actBusy) loadActivity();
 }
 
 function chips() {
   const R = S.repos.filter(r => !meta(r).ignored);
   const n = {all: R.length, running: R.filter(running).length, uncommitted: R.filter(r => r.dirty).length,
-    unpushed: R.filter(r => r.ahead).length, mine: R.filter(r => r.kind === 'mine').length, fork: R.filter(r => r.kind === 'fork').length, clone: R.filter(r => r.kind === 'clone').length, local: R.filter(r => r.kind === 'local').length, dormant: R.filter(dormant).length, issues: R.filter(r => (r.health || []).length).length, stashed: R.filter(r => nStash(r)).length, branches: R.filter(r => nLocal(r)).length, worktrees: R.filter(r => nTrees(r)).length, pinned: R.filter(r => meta(r).pinned).length,
+    unpushed: R.filter(r => r.ahead).length, mine: R.filter(r => r.kind === 'mine').length, fork: R.filter(r => r.kind === 'fork').length, clone: R.filter(r => r.kind === 'clone').length, local: R.filter(r => r.kind === 'local').length, dormant: R.filter(dormant).length, issues: R.filter(r => (r.health || []).length).length, stashed: R.filter(r => nStash(r)).length, branches: R.filter(r => nLocal(r)).length, worktrees: R.filter(r => nTrees(r)).length, copies: R.filter(r => (r.same_remote || []).length).length, pinned: R.filter(r => meta(r).pinned).length,
     ignored: S.repos.filter(r => meta(r).ignored).length};
   $('#chips').innerHTML = Object.entries(n).map(([k, v]) =>
     `<button class="chip ${ui.chip === k ? 'on' : ''}" data-chip="${k}">${k} ${v}</button>`).join('');
@@ -180,7 +230,7 @@ function chips() {
 function renderRepos(q) {
   chips();
   const sort = $('#sort').value;
-  const f = {all: r => true, running, uncommitted: r => r.dirty, unpushed: r => r.ahead > 0, mine: r => r.kind === 'mine', fork: r => r.kind === 'fork', clone: r => r.kind === 'clone', local: r => r.kind === 'local', dormant, issues: r => (r.health || []).length, stashed: nStash, branches: nLocal, worktrees: nTrees, pinned: r => meta(r).pinned, ignored: r => true}[ui.chip];
+  const f = {all: r => true, running, uncommitted: r => r.dirty, unpushed: r => r.ahead > 0, mine: r => r.kind === 'mine', fork: r => r.kind === 'fork', clone: r => r.kind === 'clone', local: r => r.kind === 'local', dormant, issues: r => (r.health || []).length, stashed: nStash, branches: nLocal, worktrees: nTrees, copies: r => (r.same_remote || []).length, pinned: r => meta(r).pinned, ignored: r => true}[ui.chip];
   let list = S.repos.filter(r => (ui.chip === 'ignored') === !!meta(r).ignored && f(r) &&
     (!q || `${r.name} ${r.path} ${r.stack.join(' ')} ${r.summary} ${meta(r).note || ''}`.toLowerCase().includes(q)));
   list.sort((a, b) => (meta(b).pinned ? 1 : 0) - (meta(a).pinned ? 1 : 0) || (sort === 'size' ? (b.size || 0) - (a.size || 0) : sort === 'name' ? a.name.localeCompare(b.name) : (b.last_commit || 0) - (a.last_commit || 0)));
@@ -200,6 +250,7 @@ function repoRow(r) {
       ${zombie(r) ? '<span class="tag warn">zombie</span>' : ''}
       ${nStash(r) ? `<span class="tag warn">${nStash(r)} stash${nStash(r) > 1 ? 'es' : ''}</span>` : ''}
       ${nLocal(r) ? `<span class="tag warn">${nLocal(r)} local-only branch${nLocal(r) > 1 ? 'es' : ''}</span>` : ''}
+      ${(r.same_remote || []).length ? `<span class="tag warn">cloned ${r.same_remote.length + 1}×</span>` : ''}
       ${nTrees(r) ? `<span class="tag">${nTrees(r)} worktree${nTrees(r) > 1 ? 's' : ''}</span>` : ''}
       ${(r.health || []).length ? `<span class="tag warn">${r.health.length} issue${r.health.length > 1 ? 's' : ''}</span>` : ''}
       <span class="tag">${esc(r.kind)}</span>
@@ -230,9 +281,9 @@ function detail(r) {
   if (ports.length) h += `<div class="line"><span class="k">listening</span>${ports.map(p => `<a href="http://localhost:${p.port}" target="_blank" rel="noopener">:${p.port}</a> <span class="meta">${esc(p.proc)}</span>`).join(' · ')}</div>`;
   const w = W(r), stateTag = b => b.state === 'local-only' ? `<span class="tag warn">${b.gone ? 'upstream gone' : b.ahead ? '↑' + b.ahead + ' unpushed' : 'local only'}</span>` : '<span class="tag">pushed, not merged</span>';
   if (w.stashes.length) h += `<div class="line"><span class="k">stash</span><span>${w.stashes.map(x => `${cmd('git stash show -p ' + x.ref)} <span class="meta">${esc(x.message)} · ${ago(x.time)}</span>`).join('<br>')}</span></div>`;
-  if (w.branches.length) h += `<div class="line"><span class="k">branches</span><span>${w.branches.slice(0, 8).map(b => `<a class="br" data-graph="${esc(b.name)}">${esc(b.name)}</a> ${stateTag(b)} <span class="meta">${ago(b.time)}</span>`).join('<br>')}${w.branches.length > 8 ? `<br><span class="meta">+${w.branches.length - 8} more, see the graph</span>` : ''}${w.merged_branches ? `<br><span class="meta">${w.merged_branches} more already merged into ${esc(w.default)}</span>` : ''}</span></div>`;
+  if (w.branches.length) h += `<div class="line"><span class="k">branches</span><span>${w.branches.slice(0, 8).map(b => `<a class="br" data-pp="${esc(r.path)}" data-pt="history" data-pfocus="${esc(b.name)}">${esc(b.name)}</a> ${stateTag(b)} <span class="meta">${ago(b.time)}</span>`).join('<br>')}${w.branches.length > 8 ? `<br><span class="meta">+${w.branches.length - 8} more, open the history</span>` : ''}${w.merged_branches ? `<br><span class="meta">${w.merged_branches} more already merged into ${esc(w.default)}</span>` : ''}</span></div>`;
   if (w.worktrees.length) h += `<div class="line"><span class="k">worktrees</span><span>${w.worktrees.map(t => `${cmd(home(t.path))} <span class="meta">${esc(t.branch || 'detached')}</span>${t.missing ? ' <span class="tag warn">folder missing · git worktree prune</span>' : ''}`).join('<br>')}</span></div>`;
-  h += `<div class="line"><span class="k">open</span><button class="go" data-graph="">Commit graph</button><button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button></div>`;
+  h += `<div class="line"><span class="k">open</span><button class="go" data-pp="${esc(r.path)}" data-pt="overview">Details</button><button class="go" data-pp="${esc(r.path)}" data-pt="history">History</button><button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button></div>`;
   for (const i of r.health || []) h += `<div class="line"><span class="k">health</span><span class="tag warn">${esc(i.text)}</span>${i.files.map(f => `<span class="mono">${esc(f)}</span>`).join(' ')}</div>`;
   if (zombie(r)) h += `<div class="line"><span class="k">zombie</span><span class="meta">holds ${r.ports.map(p => ':' + p).join(' ')} but has no commit for ${Math.floor(days(r.last_commit))} days. Stop it from the Ports tab if you forgot about it.</span></div>`;
   if ((r.subprojects || []).length) h += `<div class="line"><span class="k">inside</span><span>${r.subprojects.map(sp => `<b>${esc(sp.name)}</b> <span class="meta">${esc(sp.stack.join(' '))}</span> ${sp.run.map(c => cmd('cd ' + sp.name + ' && ' + c)).join(' ')}`).join('<br>')}</span></div>`;
@@ -296,28 +347,259 @@ function drawRow({c, col, cols, edges, pass}, maxw, focus) {
   for (const j of edges) g += `<line x1="${X(col)}" y1="${M}" x2="${X(j)}" y2="${H}" stroke="${color(j)}" stroke-width="2"/>`;
   g += `<circle cx="${X(col)}" cy="${M}" r="4.5" fill="${c.parents.length > 1 ? 'var(--bg)' : color(col)}" stroke="${color(col)}" stroke-width="2"/>`;
   const hit = focus && c.refs.some(x => x === focus || x === 'HEAD -> ' + focus);
-  return `<div class="gr ${hit ? 'focus' : ''}" ${hit ? 'data-focus' : ''}><svg width="${maxw * 14 + 14}" height="${H}">${g}</svg>
-    <span class="h">${esc(c.hash.slice(0, 7))}</span>${c.refs.map(refChip).join('')}<span class="s" title="${esc(c.subject)}">${esc(c.subject)}</span><span class="a">${esc(c.author)} · ${ago(c.time)}</span></div>`;
+  return `<div class="gr ${hit ? 'focus' : ''}" data-hash="${c.hash}" ${hit ? 'data-focus' : ''}><svg width="${maxw * 14 + 14}" height="${H}">${g}</svg>
+    <span class="h">${esc(c.hash.slice(0, 7))}</span><span class="refs">${c.refs.map(refChip).join('')}</span><span class="s" title="${esc(c.subject)}">${esc(c.subject)}</span><span class="a">${esc(c.author)} · ${ago(c.time)}</span></div>`;
 }
-async function openGraph(path, focus) {
-  const r = S.repos.find(x => x.path === path);
-  $('#gtitle').textContent = r ? r.name : path; $('#gmeta').textContent = 'loading…';
-  $('#gbody').innerHTML = ''; $('#graph').classList.add('on');
+
+/* ---------- dependencies across repos ---------- */
+let depCache = {at: null, map: null};
+function depIndex() {
+  if (depCache.at === S.scanned && depCache.map) return depCache.map;
+  const map = new Map();
+  for (const r of S.repos) {
+    if (meta(r).ignored) continue;
+    for (const d of r.deps || []) {
+      const key = d.eco + ':' + d.name;
+      if (!map.has(key)) map.set(key, {key, eco: d.eco, name: d.name, items: []});
+      map.get(key).items.push({repo: r, spec: d.spec || '', dev: d.dev, where: d.where || ''});
+    }
+  }
+  depCache = {at: S.scanned, map};
+  return map;
+}
+const specs = p => [...new Set(p.items.map(i => i.spec || 'any'))];
+const drifts = p => repoCount(p) > 1 && new Set(p.items.map(i => i.spec).filter(Boolean)).size > 1;
+const repoCount = p => new Set(p.items.map(i => i.repo.path)).size;
+const link = (r, tab = 'overview', extra = '') => `<a class="br" data-pp="${esc(r.path)}" data-pt="${tab}" ${extra}>${esc(r.name)}</a>`;
+
+function renderDeps(q) {
+  const all = [...depIndex().values()];
+  const ecos = [...new Set(all.map(p => p.eco))].sort();
+  const f = ui.dchip;
+  let list = all.filter(p => (f === 'all' || f === 'shared' && repoCount(p) > 1 || f === 'drift' && drifts(p) || f === p.eco) &&
+    (!q || p.name.toLowerCase().includes(q)));
+  list.sort((a, b) => repoCount(b) - repoCount(a) || a.name.localeCompare(b.name));
+  const chipsH = ['all', 'shared', 'drift', ...ecos].map(k => `<button class="chip ${f === k ? 'on' : ''}" data-dchip="${k}">${k}</button>`).join('');
+  const shown = list.slice(0, 250);
+  let h = `<div class="bar">${chipsH}</div><div class="meta" style="margin-bottom:8px">${all.length} packages across ${S.repos.length} repos. <b>shared</b> = used by 2+ repos, <b>drift</b> = shared but with different versions.</div>`;
+  h += '<table>' + (shown.map(p => {
+    const n = repoCount(p), open = ui.openDeps.has(p.key), sp = specs(p);
+    return `<tr><td><div class="top" data-dep="${esc(p.key)}" style="cursor:pointer"><b>${esc(p.name)}</b> <span class="tag">${esc(p.eco)}</span>
+      ${drifts(p) ? '<span class="tag warn">versions differ</span>' : ''}<span class="sp"></span><span class="meta">${n} repo${n > 1 ? 's' : ''}</span></div>
+      <div class="meta">${sp.slice(0, 6).map(esc).join(' · ')}${sp.length > 6 ? ' …' : ''}</div>
+      ${open ? '<div class="detail" style="display:block">' + p.items.map(i => `<div class="line">${link(i.repo, 'deps')} <code>${esc(i.spec || 'any')}</code>${i.dev ? ' <span class="tag">dev</span>' : ''}${i.where ? ` <span class="meta">in ${esc(i.where)}/</span>` : ''}</div>`).join('') + '</div>' : ''}</td></tr>`;
+  }).join('') || '<tr><td class="empty">No packages match.</td></tr>') + '</table>';
+  if (list.length > shown.length) h += `<div class="meta" style="margin-top:8px">Showing ${shown.length} of ${list.length}. Type in the filter to narrow down.</div>`;
+  $('#deps').innerHTML = h;
+}
+
+/* ---------- search ---------- */
+let searchSeq = 0, searchTimer = null;
+const hl = (text, q, regex) => {
+  if (regex || !q) return esc(text);
+  const low = text.toLowerCase(), ql = q.toLowerCase();
+  let out = '', i = 0, j;
+  while ((j = low.indexOf(ql, i)) >= 0) { out += esc(text.slice(i, j)) + '<mark>' + esc(text.slice(j, j + q.length)) + '</mark>'; i = j + q.length; }
+  return out + esc(text.slice(i));
+};
+async function runSearch() {
+  const q = $('#sq').value.trim(), regex = $('#sre').checked;
+  const scope = [...document.querySelectorAll('[data-scope]')].filter(x => x.checked).map(x => x.dataset.scope).join(',');
+  const box = $('#sres'), seq = ++searchSeq;
+  if (q.length < 2) { box.innerHTML = '<div class="meta">Type at least 2 characters. Searches tracked files, file names and commit messages of every repo.</div>'; return; }
+  box.innerHTML = '<div class="meta">Searching…</div>';
   try {
-    const {commits} = await api('/api/graph?path=' + encodeURIComponent(path) + '&n=300');
-    const {rows, maxw} = layoutGraph(commits);
-    $('#gmeta').textContent = `${commits.length} most recent commits across all branches` + (focus ? ` · ${focus}` : '');
-    $('#gbody').innerHTML = rows.map(x => drawRow(x, maxw, focus)).join('') || '<div class="empty">No commits.</div>';
-    const f = $('#gbody [data-focus]'); if (f) f.scrollIntoView({block: 'center'});
-  } catch (e) { $('#graph').classList.remove('on'); toast(e.message); }
+    const {results} = await api('/api/search?' + new URLSearchParams({q, scope, regex: regex ? '1' : '0'}));
+    if (seq !== searchSeq) return;
+    const hits = results.reduce((a, r) => a + r.code.length + r.files.length + r.commits.length, 0);
+    box.innerHTML = `<div class="meta" style="margin-bottom:8px">${hits} matches in ${results.length} repos</div>` + results.map(r => `<div class="row">
+      <div class="top"><span class="name">${link({path: r.path, name: r.name})}</span><span class="path">${esc(home(r.path))}</span></div>
+      ${r.files.map(f => `<div class="sr"><span class="tag">file</span> <a class="br" data-pp="${esc(r.path)}" data-pt="files" data-pf="${esc(f)}">${hl(f, q, regex)}</a></div>`).join('')}
+      ${r.code.map(c => `<div class="sr"><a class="br mono" data-pp="${esc(r.path)}" data-pt="files" data-pf="${esc(c.file)}" data-pl="${c.line}">${esc(c.file)}:${c.line}</a> <span class="snip">${hl(c.text, q, regex)}</span></div>`).join('')}
+      ${r.capped ? '<div class="meta">more matches in this repo, refine the search</div>' : ''}
+      ${r.commits.map(c => `<div class="sr"><span class="tag">commit</span> <a class="br" data-pp="${esc(r.path)}" data-pt="history" data-pc="${c.hash}">${hl(c.subject, q, regex)}</a> <span class="meta">${c.hash.slice(0, 7)} · ${ago(c.time)}</span></div>`).join('')}
+    </div>`).join('') || '<div class="empty">No matches.</div>';
+  } catch (e) { if (seq === searchSeq) box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
+
+/* ---------- activity ---------- */
+async function loadActivity() {
+  const box = $('#ares'); ui.actBusy = true; box.innerHTML = '<div class="meta">Loading…</div>';
+  try {
+    ui.act = (await api('/api/activity?' + new URLSearchParams({days: $('#adays').value, mine: $('#amine').checked ? '1' : '0'}))).commits;
+  } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; ui.act = null; }
+  ui.actBusy = false; renderActivity();
+}
+function renderActivity() {
+  const rows = ui.act; if (!rows) return;
+  const counts = {}; for (const c of rows) counts[c.repo] = (counts[c.repo] || 0) + 1;
+  const list = ui.actRepo ? rows.filter(c => c.repo === ui.actRepo) : rows;
+  const chipsH = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([p, n]) => `<button class="chip ${ui.actRepo === p ? 'on' : ''}" data-arepo="${esc(p)}">${esc((repoByPath()[p] || {name: p}).name)} ${n}</button>`).join('');
+  let h = `<div class="bar">${chipsH}</div><div class="meta" style="margin-bottom:6px">${list.length} commits in ${Object.keys(counts).length} repos</div>`, day = '';
+  for (const c of list) {
+    const d = new Date(c.time * 1000), dl = d.toLocaleDateString(undefined, {weekday: 'long', month: 'short', day: 'numeric'});
+    if (dl !== day) { day = dl; h += `<h2>${esc(dl)}</h2>`; }
+    h += `<div class="sr"><span class="mono">${d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span> <span class="tag">${esc(c.name)}</span> <a class="br" data-pp="${esc(c.repo)}" data-pt="history" data-pc="${c.hash}">${esc(c.subject)}</a> <span class="meta">${esc(c.author)}</span></div>`;
+  }
+  $('#ares').innerHTML = h || '<div class="empty">No commits in this period.</div>';
+}
+
+/* ---------- repo page ---------- */
+const pg = {path: null, tab: 'overview', ref: 'HEAD', dir: '', file: null, line: null, focus: '', commit: null, cache: {}};
+const PTABS = [['overview', 'Overview'], ['files', 'Files'], ['history', 'History'], ['branches', 'Branches'], ['deps', 'Dependencies']];
+const repoOf = p => S.repos.find(r => r.path === p);
+const jget = (path, params) => api(path + '?' + new URLSearchParams(params));
+const LANG_COLOR = ['#2563eb', '#d97706', '#16a34a', '#9333ea', '#dc2626', '#0891b2', '#be185d', '#6b7280'];
+
+function openPage(path, tab = 'overview', o = {}) {
+  if (pg.path !== path) Object.assign(pg, {ref: 'HEAD', dir: '', file: null, line: null, cache: {}});
+  Object.assign(pg, {path, tab, focus: o.focus || '', commit: o.commit || null});
+  if (o.file) { pg.file = o.file; pg.line = o.line || null; pg.dir = o.file.split('/').slice(0, -1).join('/'); }
+  $('#page').classList.add('on');
+  renderPage();
+}
+const closePage = () => $('#page').classList.remove('on');
+
+async function renderPage() {
+  const r = repoOf(pg.path); if (!r) return closePage();
+  $('#ptitle').textContent = r.name;
+  $('#ptags').innerHTML = `<span class="tag">${esc(r.kind)}</span> ${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join(' ')}`;
+  $('#ppath').textContent = home(r.path) + (r.branch ? ' · ' + r.branch : '');
+  $('#ptabs').innerHTML = PTABS.map(([k, l]) => `<a data-ptab="${k}" class="${pg.tab === k ? 'on' : ''}">${l}</a>`).join('');
+  const tab = pg.tab, path = r.path, body = $('#pbody');
+  body.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const html = await ({overview: pOverview, files: pFiles, history: pHistory, branches: pBranches, deps: pDeps})[tab](r);
+    if (pg.tab !== tab || pg.path !== path) return;
+    body.innerHTML = html; afterPage(tab);
+  } catch (e) { if (pg.tab === tab && pg.path === path) body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+async function pOverview(r) {
+  const ov = pg.cache.ov ||= await jget('/api/overview', {path: r.path});
+  const tot = ov.languages.reduce((a, l) => a + l.bytes, 0) || 1;
+  const go = (f, n) => `<a class="br mono" data-pp="${esc(r.path)}" data-pt="files" data-pf="${esc(f)}">${esc(f)}</a> <span class="meta">${n} recent commits</span>`;
+  const rel = [];
+  if (r.same_remote?.length) rel.push(`<div class="line"><span class="k">copies</span><span>Same remote is also cloned at: ${r.same_remote.map(p => link(repoOf(p) || {path: p, name: home(p)})).join(', ')}</span></div>`);
+  if (r.remotes?.upstream) rel.push(`<div class="line"><span class="k">upstream</span><span class="mono">${esc(r.remotes.upstream)}</span></div>`);
+  if (r.uses?.length) rel.push(`<div class="line"><span class="k">uses</span><span>Depends on your other repos: ${r.uses.map(p => link(repoOf(p))).join(', ')}</span></div>`);
+  if (r.used_by?.length) rel.push(`<div class="line"><span class="k">used by</span><span>${r.used_by.map(p => link(repoOf(p))).join(', ')}</span></div>`);
+  return `<div class="stats">
+      <div><b>${ov.commits_total}</b><span>commits</span></div><div><b>${ov.files_total}</b><span>tracked files</span></div>
+      <div><b>${ov.contributors.length}</b><span>contributors</span></div><div><b>${ov.first_commit ? ago(ov.first_commit).replace(' ago', '') : '?'}</b><span>age</span></div>
+      <div><b>${ago(r.last_commit).replace(' ago', '')}</b><span>since last commit</span></div><div><b>${size(r.size)}</b><span>on disk</span></div></div>
+    ${r.summary ? `<p>${esc(r.summary)}</p>` : ''}
+    ${meta(r).note ? `<div class="ai" style="margin-bottom:10px"><b>Your note</b><br>${esc(meta(r).note)}</div>` : ''}
+    ${ov.languages.length ? `<h2>Languages</h2><div class="lbar">${ov.languages.map((l, i) => `<i style="width:${l.bytes / tot * 100}%;background:${LANG_COLOR[i % 8]}" title="${esc(l.name)}"></i>`).join('')}</div>
+      <div class="meta" style="margin-top:6px">${ov.languages.map((l, i) => `<span style="color:${LANG_COLOR[i % 8]}">●</span> ${esc(l.name)} ${(l.bytes / tot * 100).toFixed(1)}% (${l.files})`).join(' &nbsp; ')}</div>` : ''}
+    ${rel.length ? `<h2>Related</h2><div class="detail" style="display:block">${rel.join('')}</div>` : ''}
+    <div class="split2"><div><h2>Contributors</h2>${ov.contributors.map(c => `<div class="sr">${esc(c.name)} <span class="meta">${c.commits}</span></div>`).join('') || '<div class="meta">none</div>'}</div>
+      <div><h2>Tags</h2>${ov.tags.map(t => `<div class="sr">${esc(t.name)} <span class="meta">${ago(t.time)}</span></div>`).join('') || '<div class="meta">no tags</div>'}</div>
+      <div><h2>Most changed files (last 60 commits)</h2>${ov.hot_files.map(f => `<div class="sr">${go(f.file, f.changes)}</div>`).join('') || '<div class="meta">none</div>'}</div></div>
+    ${r.run.length ? `<h2>Run</h2><div class="line">${r.run.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
+    ${r.setup.length ? `<h2>Setup</h2><div class="line">${r.setup.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
+    ${ov.readme ? `<h2>README</h2><pre class="readme">${esc(ov.readme)}</pre>` : ''}`;
+}
+
+function refOptions(r) {
+  const w = W(r), names = ['HEAD', w.default, r.branch, ...w.branches.map(b => b.name)].filter(Boolean);
+  return [...new Set(names)].map(n => `<option ${n === pg.ref ? 'selected' : ''}>${esc(n)}</option>`).join('');
+}
+async function pFiles(r) {
+  const {entries} = await jget('/api/tree', {path: r.path, ref: pg.ref, dir: pg.dir});
+  const parts = pg.dir ? pg.dir.split('/') : [];
+  const crumbs = `<a class="br" data-dir="">root</a>` + parts.map((p, i) => ` / <a class="br" data-dir="${esc(parts.slice(0, i + 1).join('/'))}">${esc(p)}</a>`).join('');
+  let viewer = '<div class="meta">Pick a file.</div>';
+  if (pg.file) {
+    try {
+      const f = await jget('/api/file', {path: r.path, ref: pg.ref, file: pg.file});
+      if (f.binary) viewer = `<div class="meta">${esc(pg.file)}: binary file, ${size(f.size)}</div>`;
+      else {
+        const lines = f.text.split('\n').slice(0, 6000);
+        viewer = `<div class="meta" style="margin-bottom:6px"><b>${esc(pg.file)}</b> · ${size(f.size)}${f.truncated || lines.length >= 6000 ? ' · truncated' : ''}</div><div class="code">${lines.map((l, i) => `<div class="cl ${pg.line === i + 1 ? 'hit' : ''}" ${pg.line === i + 1 ? 'data-hit' : ''}><i>${i + 1}</i><span>${esc(l) || ' '}</span></div>`).join('')}</div>`;
+      }
+    } catch (e) { viewer = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+  const up = pg.dir ? `<div class="ent" data-dir="${esc(parts.slice(0, -1).join('/'))}"><span>..</span></div>` : '';
+  return `<div class="split"><div><div class="bar"><select data-ref>${refOptions(r)}</select><span class="meta">${crumbs}</span></div>
+    <div class="list">${up}${entries.map(e => { const full = (pg.dir ? pg.dir + '/' : '') + e.name;
+      return e.type === 'tree' ? `<div class="ent" data-dir="${esc(full)}"><span>${esc(e.name)}/</span></div>`
+        : `<div class="ent ${pg.file === full ? 'sel' : ''}" data-file="${esc(full)}"><span>${esc(e.name)}</span><span class="meta">${size(e.size)}</span></div>`; }).join('') || '<div class="meta">empty</div>'}</div></div>
+    <div>${viewer}</div></div>`;
+}
+
+async function pHistory(r) {
+  const {commits} = pg.cache.graph ||= await jget('/api/graph', {path: r.path, n: 300});
+  const {rows, maxw} = layoutGraph(commits);
+  return `<div class="split hist"><div class="gl" id="glist">${rows.map(x => drawRow(x, maxw, pg.focus)).join('') || '<div class="empty">No commits.</div>'}</div>
+    <div class="cp" id="cpanel"><div class="meta">Click a commit to see what changed.</div></div></div>`;
+}
+function renderDiff(diff) {
+  const blocks = diff.split(/^diff --git /m).filter(Boolean);
+  return blocks.map((b, i) => {
+    const lines = b.split('\n'), name = (lines[0].match(/ b\/(.*)$/) || [])[1] || lines[0];
+    const body = lines.slice(1).map(l => `<div class="${l.startsWith('+') && !l.startsWith('+++') ? 'add' : l.startsWith('-') && !l.startsWith('---') ? 'del' : l.startsWith('@@') ? 'hunk' : ''}">${esc(l) || ' '}</div>`).join('');
+    return `<details ${i < 3 ? 'open' : ''}><summary>${esc(name)}</summary><div class="diff code">${body}</div></details>`;
+  }).join('');
+}
+async function loadCommit(hash) {
+  document.querySelectorAll('#glist .gr').forEach(x => x.classList.toggle('sel', x.dataset.hash === hash || x.dataset.hash.startsWith(hash)));
+  const box = $('#cpanel'); box.innerHTML = '<div class="meta">Loading…</div>';
+  try {
+    const c = await jget('/api/commit', {path: pg.path, hash: hash.slice(0, 40)});
+    if (!$('#cpanel') || !c.hash.startsWith(hash.slice(0, 7))) return;
+    const [subject, ...rest] = c.message.split('\n');
+    $('#cpanel').innerHTML = `<b>${esc(subject)}</b><pre class="msg">${esc(rest.join('\n').trim())}</pre>
+      <div class="meta">${esc(c.author)} · ${new Date(c.time * 1000).toLocaleString()} · <code>${esc(c.hash.slice(0, 10))}</code></div>
+      <div class="meta" style="margin:8px 0">${c.files.length} files: ${c.files.slice(0, 40).map(f => `<a class="br mono" data-pp="${esc(pg.path)}" data-pt="files" data-pf="${esc(f.file)}" title="open current version">${esc(f.file)}</a> <span style="color:var(--ok)">+${f.added ?? '?'}</span> <span style="color:var(--warn)">−${f.deleted ?? '?'}</span>`).join('<br>')}</div>
+      ${renderDiff(c.diff)}${c.diff_truncated ? '<div class="meta">diff truncated</div>' : ''}`;
+  } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+function pBranches(r) {
+  const w = W(r), st = b => b.state === 'local-only' ? `<span class="tag warn">${b.gone ? 'upstream gone' : b.ahead ? '↑' + b.ahead + ' unpushed' : 'local only'}</span>` : '<span class="tag">pushed, not merged</span>';
+  return `<div class="meta">Default branch: <b>${esc(w.default || '?')}</b> · current: <b>${esc(r.branch)}</b> · ${w.merged_branches} more branches are already merged</div>
+    <h2>Unmerged branches (${w.branches.length})</h2>${w.branches.map(b => `<div class="sr"><a class="br" data-pp="${esc(r.path)}" data-pt="history" data-pfocus="${esc(b.name)}">${esc(b.name)}</a> ${st(b)} <span class="meta">${ago(b.time)}</span></div>`).join('') || '<div class="meta">none</div>'}
+    <h2>Stashes (${w.stashes.length})</h2>${w.stashes.map(s => `<div class="sr"><code>git stash show -p ${esc(s.ref)}</code> <span class="meta">${esc(s.message)} · ${ago(s.time)}</span></div>`).join('') || '<div class="meta">none</div>'}
+    <h2>Worktrees (${w.worktrees.length})</h2>${w.worktrees.map(t => `<div class="sr"><code>${esc(home(t.path))}</code> <span class="meta">${esc(t.branch || 'detached')}</span>${t.missing ? ' <span class="tag warn">folder missing</span>' : ''}</div>`).join('') || '<div class="meta">none</div>'}`;
+}
+function pDeps(r) {
+  const idx = depIndex(), ds = r.deps || [];
+  if (!ds.length) return '<div class="meta">No dependency manifest found (package.json, pyproject.toml, requirements.txt, go.mod, Cargo.toml, composer.json).</div>';
+  return '<table>' + ds.map(d => { const p = idx.get(d.eco + ':' + d.name), n = p ? repoCount(p) : 1;
+    return `<tr><td><b>${esc(d.name)}</b> <span class="tag">${esc(d.eco)}</span>${d.dev ? ' <span class="tag">dev</span>' : ''}${d.where ? ` <span class="meta">in ${esc(d.where)}/</span>` : ''}</td>
+      <td><code>${esc(d.spec || 'any')}</code></td><td class="r">${n > 1 ? `<a class="br" data-deplink="${esc(d.name)}">also in ${n - 1} other repo${n > 2 ? 's' : ''}</a>` : '<span class="meta">only here</span>'}</td></tr>`; }).join('') + '</table>';
+}
+function afterPage(tab) {
+  if (tab === 'history') {
+    if (pg.focus) $('#glist [data-focus]')?.scrollIntoView({block: 'center'});
+    if (pg.commit) { $('#glist [data-hash^="' + pg.commit.slice(0, 40) + '"]')?.scrollIntoView({block: 'center'}); loadCommit(pg.commit); }
+  }
+  if (tab === 'files') $('#pbody [data-hit]')?.scrollIntoView({block: 'center'});
+}
+$('#page').addEventListener('click', e => {
+  const t = e.target;
+  if (t.closest('#pclose')) return closePage();
+  const tabEl = t.closest('[data-ptab]'); if (tabEl) { pg.tab = tabEl.dataset.ptab; pg.focus = ''; pg.commit = null; return renderPage(); }
+  const dir = t.closest('[data-dir]'); if (dir) { pg.dir = dir.dataset.dir; pg.file = null; pg.line = null; return renderPage(); }
+  const file = t.closest('[data-file]'); if (file) { pg.file = file.dataset.file; pg.line = null; return renderPage(); }
+  const gr = t.closest('.gr'); if (gr) return loadCommit(gr.dataset.hash);
+  const dl = t.closest('[data-deplink]'); if (dl) { closePage(); ui.tab = 'deps'; ui.dchip = 'all'; $('#q').value = dl.dataset.deplink; saveUi(); return render(); }
+});
+$('#page').addEventListener('change', e => { if (e.target.hasAttribute('data-ref')) { pg.ref = e.target.value; renderPage(); } });
 
 /* ---------- events ---------- */
 async function act(fn) { try { await fn(); } catch (e) { toast(e.message); } render(); }
 
 document.addEventListener('click', e => {
   const t = e.target, row = t.closest('.row'), path = row && row.dataset.path;
-  if (t.closest('[data-tab]')) { ui.tab = t.dataset.tab; saveUi(); return render(); }
+  if (t.closest('[data-tab]')) { ui.tab = t.closest('[data-tab]').dataset.tab; saveUi(); return render(); }
+  const pp = t.closest('[data-pp]');
+  if (pp && !t.closest('#page [data-ptab]')) { const d = pp.dataset; return openPage(d.pp, d.pt || 'overview', {file: d.pf, line: +d.pl || null, commit: d.pc, focus: d.pfocus}); }
+  if (t.dataset.dchip) { ui.dchip = t.dataset.dchip; saveUi(); return render(); }
+  if (t.dataset.arepo !== undefined) { ui.actRepo = ui.actRepo === t.dataset.arepo ? null : t.dataset.arepo; return renderActivity(); }
+  const dep = t.closest('[data-dep]'); if (dep && !t.closest('a')) { const k = dep.dataset.dep; ui.openDeps.has(k) ? ui.openDeps.delete(k) : ui.openDeps.add(k); return renderDeps($('#q').value.toLowerCase()); }
+  if (t.dataset.open && !row) return act(async () => { const o = await api('/api/open', {path: pg.path, target: t.dataset.open}); toast('Opened in ' + o.with); });
   if (t.dataset.chip) { ui.chip = t.dataset.chip; saveUi(); return render(); }
   if (t.dataset.kill) return act(async () => {
     if (!confirm(`Stop process ${t.dataset.kill} on port ${t.dataset.port}?`)) return;
@@ -327,7 +609,6 @@ document.addEventListener('click', e => {
   if (!row) return;
   const r = S.repos.find(x => x.path === path);
   if (t.dataset.open) return act(async () => { const o = await api('/api/open', {path, target: t.dataset.open}); toast('Opened in ' + o.with); });
-  if (t.dataset.graph !== undefined) return openGraph(path, t.dataset.graph);
   if (t.hasAttribute('data-pin')) return act(async () => { S.meta[path] = await api('/api/meta', {path, pinned: !meta(r).pinned}); });
   if (t.hasAttribute('data-ignore')) return act(async () => { S.meta[path] = await api('/api/meta', {path, ignored: !meta(r).ignored}); });
   if (t.dataset.start) return act(async () => {
@@ -350,12 +631,16 @@ document.addEventListener('focusout', e => {
   api('/api/meta', {path, note: e.target.value}).then(m => { S.meta[path] = m; }).catch(err => toast(err.message));
 });
 document.addEventListener('keydown', e => {
+  if (e.key === '/' && ui.tab === 'search' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); return $('#sq').focus(); }
   if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); $('#q').focus(); }
-  if (e.key === 'Escape' && $('#graph').classList.contains('on')) return $('#graph').classList.remove('on');
+  if (e.key === 'Escape' && $('#page').classList.contains('on')) return closePage();
   if (e.key === 'Escape') { $('#q').value = ''; $('#q').blur(); render(); }
 });
 $('#q').addEventListener('input', render);
-$('#gclose').addEventListener('click', () => $('#graph').classList.remove('on'));
+$('#sq').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 350); });
+$('#sq').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(searchTimer); runSearch(); } });
+document.querySelectorAll('[data-scope], #sre').forEach(x => x.addEventListener('change', runSearch));
+$('#adays').addEventListener('change', loadActivity); $('#amine').addEventListener('change', loadActivity);
 $('#sort').addEventListener('change', () => { saveUi(); render(); });
 $('#re').addEventListener('click', rescan);
 try { const s = JSON.parse(localStorage.getItem('gr-ui') || '{}').sort; if (s) $('#sort').value = s; } catch {}
