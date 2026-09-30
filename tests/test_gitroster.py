@@ -87,16 +87,27 @@ class ScannerTest(unittest.TestCase):
         self.assertIn("## mono", md)
         self.assertIn("my note", md)
 
-    def test_park_removes_untracked_folders_and_writes_restore(self):
-        p = make_repo(self.root, "web", {"package.json": "{}", "dist/tracked.js": "x"})
-        (p / "node_modules" / "a").mkdir(parents=True)
-        (p / "node_modules" / "a" / "i.js").write_text("x")
-        repo = scanner.scan([self.root])["repos"][0]
-        removed, text = scanner.park(repo, today="2026-01-01")
-        self.assertEqual(removed, [str(p / "node_modules")])
-        self.assertTrue((p / "dist" / "tracked.js").exists())  # tracked by git: untouched
-        self.assertIn("Parked 2026-01-01", text)
-        self.assertIn("npm install", text)
+    def test_forgotten_work_and_graph(self):
+        p = make_repo(self.root, "wip", {"a.txt": "1"})
+        git(p, "branch", "-M", "main")
+        git(p, "checkout", "-qb", "feature/x")
+        (p / "b.txt").write_text("2")
+        git(p, "add", "-A")
+        git(p, "commit", "-qm", "work on x")
+        git(p, "checkout", "-q", "main")
+        git(p, "branch", "merged-one")  # same commit as main: already merged
+        (p / "a.txt").write_text("changed")
+        git(p, "stash")
+        git(p, "worktree", "add", "-q", str(self.root / "wt"), "-b", "wt-branch")
+        w = scanner.forgotten_work(p)
+        self.assertEqual(w["default"], "main")
+        self.assertEqual([(b["name"], b["state"]) for b in w["branches"]], [("feature/x", "local-only")])
+        self.assertEqual(w["merged_branches"], 1 + 1)  # merged-one and wt-branch (no commits of its own)
+        self.assertEqual(len(w["stashes"]), 1)
+        self.assertEqual([t["branch"] for t in w["worktrees"]], ["wt-branch"])
+        g = scanner.graph(p)
+        self.assertEqual([c["subject"] for c in g][:2], ["work on x", "init"])
+        self.assertEqual(g[0]["parents"], [g[1]["hash"]])
 
     def test_venv_is_linked_and_used_in_run_command(self):
         p = make_repo(self.root, "api", {"main.py": "print(1)", "requirements.txt": "flask\n"})
@@ -125,18 +136,6 @@ class ScannerTest(unittest.TestCase):
         make_repo(self.root / "venhancer", "project")
         (r,) = scanner.scan([self.root])["repos"]
         self.assertEqual(r["name"], "venhancer/project")
-
-    def test_reclaimable_and_big_files(self):
-        p = make_repo(self.root, "ml", {"a.txt": "x"})
-        (p / "node_modules").mkdir()
-        (p / "node_modules" / "x").write_bytes(b"0" * 4096)
-        big = p / "model.safetensors"
-        with open(big, "wb") as f:
-            f.truncate(scanner.BIG_FILE + 1)
-        (r,) = scanner.scan([self.root])["repos"]
-        self.assertEqual([x["kind"] for x in r["reclaimable"]], ["node_modules"])
-        self.assertEqual(r["big_files"][0]["path"], "model.safetensors")
-        self.assertGreater(r["big_total"], scanner.BIG_FILE)
 
     def test_repo_kind(self):
         def with_remote(name, *remotes, email="t@t"):
@@ -261,6 +260,19 @@ class ServerTest(unittest.TestCase):
                 break
             threading.Event().wait(0.1)
         self.assertIn("hello", out["log"])
+
+    def test_open_rejects_unknown_repo_and_target(self):
+        code, _ = self.call("/api/open", {"path": "/etc", "target": "folder"})
+        self.assertEqual(code, 404)
+        code, _ = self.call("/api/open", {"path": str(self.repo), "target": "rm -rf"})
+        self.assertEqual(code, 400)
+
+    def test_graph_endpoint(self):
+        code, g = self.call("/api/graph?path=" + urllib.request.quote(str(self.repo)))
+        self.assertEqual(code, 200)
+        self.assertTrue(g["commits"])
+        code, _ = self.call("/api/graph?path=/etc")
+        self.assertEqual(code, 404)
 
     def test_kill_refuses_non_listening_pid(self):
         sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])  # alive, but not listening on any port

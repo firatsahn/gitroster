@@ -50,6 +50,11 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - Flags for **uncommitted changes**, **unpushed commits**, **no remote** and **dormant** (no commit in 90+ days and nothing running)
 - Notes, pin and ignore, kept in `~/.config/gitroster/` (`~/Library/Application Support/gitroster` on macOS, `%APPDATA%\gitroster` on Windows)
 
+**Work you might forget**
+- Stashes, branches that exist only on this machine or are not merged yet, and extra worktrees, with filters for each
+- A commit graph of every branch (click a branch to jump to it)
+- One-click open in your editor, terminal or file manager
+
 **How to run it**
 - Setup and run commands detected from `package.json` (npm, pnpm, yarn), `pyproject.toml`, `requirements.txt`, `manage.py`, `main.py`/`app.py`, `Cargo.toml`, `go.mod`, `pubspec.yaml`, `Makefile`, Docker Compose and Wrangler
 - Commands use the repo's own virtual environment when one exists
@@ -61,11 +66,6 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - Ports open on all interfaces are flagged
 - One click to open it in the browser, one to stop it
 - Docker containers, matched to their compose folder
-
-**Cleanup**
-- Environments, `node_modules`, build folders and large files, sorted by size and marked "in use" when the repo is running
-- Dormant repos with their size
-- Copy-paste `rm` commands. The only thing gitroster deletes itself is what you **Park** (dependency and build folders, after a confirmation, never git-tracked files and never while the repo is running)
 
 **AI runbook (optional)**
 - Press "Explain how to run" and your local agent writes a short runbook from the README, file tree and detected commands. It is labelled *AI-generated, unverified* and nothing is executed.

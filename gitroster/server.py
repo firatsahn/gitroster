@@ -10,7 +10,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import agent, export, procs, scanner
+from . import agent, export, opener, procs, scanner
 from .store import Store
 
 STATIC = Path(__file__).parent / "static"
@@ -68,19 +68,6 @@ class App:
         threading.Thread(target=proc.wait, daemon=True).start()  # reap it when it exits
         return {"pid": proc.pid, "log": str(log)}
 
-    def park(self, path):
-        repo = self.repo(path)
-        if not repo:
-            raise ValueError("unknown repo")
-        ports, _ = self.live_ports()
-        if any(p["repo"] == path for p in ports):
-            raise ValueError("repo has a process listening on a port; stop it first")
-        before = sum(i["size"] or 0 for i in scanner.parkable(repo))
-        removed, text = scanner.park(repo)
-        note = self.store.meta().get(path, {}).get("note", "")
-        meta = self.store.update_meta(path, note=(note + "\n\n" + text).strip()[:4000])
-        return {"removed": removed, "freed": before, "meta": meta}
-
     def tail(self, path, n=4000):
         log = self.store.log_path(Path(path).name)
         try:
@@ -126,6 +113,13 @@ def make_handler(app):
                 return self.ok(app.state())
             if path == "/api/scan":
                 return self.ok(app.do_scan())
+            if path == "/api/graph":
+                from urllib.parse import unquote
+                q = dict(x.split("=", 1) for x in self.path.partition("?")[2].split("&") if "=" in x)
+                p = unquote(q.get("path", ""))
+                if not app.repo(p):
+                    return self.err(404, "unknown repo")
+                return self.ok({"commits": scanner.graph(p, min(int(q.get("n", 300) or 300), 1000))})
             if path == "/api/export.md":
                 return self.send(200, export.markdown(app.scan, app.store.meta()), "text/markdown; charset=utf-8")
             if path == "/api/ports":
@@ -154,8 +148,10 @@ def make_handler(app):
                         return self.err(404, "not a listening process")
                     os.kill(pid, signal.SIGTERM)
                     return self.ok({"ok": True})
-                if path == "/api/park":
-                    return self.ok(app.park(body["path"]))
+                if path == "/api/open":
+                    if not app.repo(body["path"]):
+                        return self.err(404, "unknown repo")
+                    return self.ok({"with": opener.open_repo(body["path"], body["target"])})
                 if path == "/api/start":
                     return self.ok(app.start(body["path"], body["cmd"]))
                 if path == "/api/meta":
