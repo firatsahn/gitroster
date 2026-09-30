@@ -60,6 +60,7 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 **Work you might forget**
 - Stashes, branches that exist only on this machine or are not merged yet, and extra worktrees, with filters for each
 - A commit graph of every branch (click a branch to jump to it)
+- Light, dark or system theme in Settings
 - One-click open in your editor, terminal or file manager. Settings lists the editors (VS Code, Cursor, PyCharm, IntelliJ, Zed, Sublime and more) and terminals installed on your machine so you can pick one, or set a custom command
 
 **How to run it**

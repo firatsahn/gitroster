@@ -5,14 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>gitroster</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script>try { const t = localStorage.getItem('gr-theme'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch {}</script>
 <style>
-:root{--bg:#fff;--fg:#111;--mute:#777;--line:#e6e6e6;--card:#fafafa;--warn:#b45309;--ok:#15803d;--bar:#111}
-@media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--mute:#8a8a8a;--line:#262626;--card:#181818;--warn:#f59e0b;--ok:#4ade80;--bar:#eee}}
+:root{--bg:#fff;--fg:#111;--mute:#777;--line:#e6e6e6;--card:#fafafa;--warn:#b45309;--ok:#15803d;--bar:#111;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#111;--fg:#eee;--mute:#8a8a8a;--line:#262626;--card:#181818;--warn:#f59e0b;--ok:#4ade80;--bar:#eee;--logo:invert(1);color-scheme:dark}}
+:root[data-theme=dark]{--bg:#111;--fg:#eee;--mute:#8a8a8a;--line:#262626;--card:#181818;--warn:#f59e0b;--ok:#4ade80;--bar:#eee;--logo:invert(1);color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,sans-serif}
 main{max-width:920px;margin:0 auto;padding:32px 16px 80px}
 header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
-.logo{width:24px;height:24px;border-radius:6px}
+.logo{filter:var(--logo,none);width:24px;height:24px;border-radius:6px}
 h1{font-size:18px;margin:0;font-weight:600;letter-spacing:-.01em}
 .sub{color:var(--mute);font-size:13px}
 .sp{flex:1}
@@ -91,6 +93,13 @@ button.primary:hover{opacity:.85}
 #settings .card{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:20px;width:100%;max-width:460px}
 .opt{display:flex;gap:8px;align-items:center;padding:4px 0;color:var(--fg);font-size:14px}
 .opt input{width:auto}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.segopt{margin:0;cursor:pointer}
+.segopt input{position:absolute;opacity:0;width:0;height:0}
+.segopt span{display:block;padding:5px 16px;font-size:13px;color:var(--mute);border-left:1px solid var(--line)}
+.segopt:first-child span{border-left:0}
+.segopt input:checked+span{background:var(--fg);color:var(--bg)}
+.segopt input:focus-visible+span{outline:2px solid var(--fg);outline-offset:-2px}
 .ov{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:32px;align-items:start}
 @media(max-width:760px){.ov{grid-template-columns:1fr}}
 .ov aside h2:first-child{margin-top:0}
@@ -659,12 +668,20 @@ $('#page').addEventListener('change', e => { if (e.target.hasAttribute('data-ref
 
 /* ---------- settings ---------- */
 let cfg = {settings: {}, editors: [], terminals: []};
-async function loadCfg() { try { cfg = await api('/api/settings'); } catch {} }
+function applyTheme(t) {
+  const root = document.documentElement;
+  if (t === 'dark' || t === 'light') root.dataset.theme = t; else delete root.dataset.theme;
+  try { t === 'dark' || t === 'light' ? localStorage.setItem('gr-theme', t) : localStorage.removeItem('gr-theme'); } catch {}
+}
+async function loadCfg() { try { cfg = await api('/api/settings'); applyTheme(cfg.settings.theme); } catch {} }
 function renderCfg() {
   const st = cfg.settings, cur = st.editor || '';
   const opt = (name, val, label, checked) => `<label class="opt"><input type="radio" name="${name}" value="${esc(val)}" ${checked ? 'checked' : ''}>${esc(label)}</label>`;
   const first = cfg.editors[0]?.id;
-  $('#sbody').innerHTML = `<h2 style="margin-top:0">Editor</h2>
+  const theme = st.theme || 'system';
+  $('#sbody').innerHTML = `<h2 style="margin-top:0">Appearance</h2>
+    <div class="seg">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label class="segopt"><input type="radio" name="theme" value="${v}" ${theme === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+    <h2>Editor</h2>
     ${cfg.editors.map(e => opt('editor', e.id, e.label, cur === e.id || (!cur && e.id === first))).join('') || '<div class="meta">No known editor found on this machine.</div>'}
     ${opt('editor', 'custom', 'Custom command', cur === 'custom')}
     <input id="ecustom" placeholder="for example: code -r" value="${esc(st.editor_custom || '')}" style="width:100%;margin-top:4px">
@@ -673,10 +690,16 @@ function renderCfg() {
     <div class="meta" style="margin-top:12px">Only editors and terminals installed on this machine are listed. Saved automatically.</div>`;
 }
 async function saveCfg(patch) { try { cfg.settings = (await api('/api/settings', patch)).settings; toast('Saved'); } catch (e) { toast(e.message); } }
-$('#cfg').addEventListener('click', async () => { $('#sbody').innerHTML = '<div class="meta">Looking for editors and terminals…</div>'; $('#settings').classList.add('on'); await loadCfg(); renderCfg(); });
+$('#cfg').addEventListener('click', async () => {
+  const had = cfg.editors.length || cfg.terminals.length;  // loaded in the background at startup, so this is normally instant
+  if (had) renderCfg(); else $('#sbody').innerHTML = '<div class="meta">Looking for editors and terminals…</div>';
+  $('#settings').classList.add('on');
+  if (!had) { await loadCfg(); renderCfg(); }
+});
 $('#sclose').addEventListener('click', () => $('#settings').classList.remove('on'));
 $('#settings').addEventListener('click', e => { if (e.target.id === 'settings') $('#settings').classList.remove('on'); });
 $('#settings').addEventListener('change', e => {
+  if (e.target.name === 'theme') { applyTheme(e.target.value); return saveCfg({theme: e.target.value}); }
   if (e.target.name === 'editor') saveCfg({editor: e.target.value, editor_custom: $('#ecustom').value});
   if (e.target.id === 'eterm') saveCfg({terminal: e.target.value});
   if (e.target.id === 'ecustom') saveCfg({editor: 'custom', editor_custom: e.target.value});
@@ -741,6 +764,7 @@ $('#sort').addEventListener('change', () => { saveUi(); render(); });
 $('#re').addEventListener('click', rescan);
 try { const s = JSON.parse(localStorage.getItem('gr-ui') || '{}').sort; if (s) $('#sort').value = s; } catch {}
 $('#popen').innerHTML = openBtns();
+loadCfg();  // editors, terminals and theme: ready before Settings is opened
 load();
 setInterval(pollPorts, 5000);
 </script>

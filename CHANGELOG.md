@@ -13,6 +13,8 @@
 - Repo detail page: overview, files, history with commit diffs, branches, dependencies.
 - Search across all repos (code, file names, commit messages), cross-repo dependency view with version drift.
 - Related repos: duplicate clones of one remote, and local packages that depend on each other.
+- Light, dark and system theme, chosen in Settings.
+- Settings opens instantly: editors and terminals are detected in the background (PATH is listed once instead of probed per command, 3.7 s to 0.7 s on WSL).
 - Markdown export of the whole inventory (`/api/export.md`, Export button).
 
 ## 0.1.0

@@ -176,7 +176,10 @@ def make_handler(app):
                     os.kill(pid, signal.SIGTERM)
                     return self.ok({"ok": True})
                 if path == "/api/settings":
-                    app.store.update_settings(**{k: str(body[k])[:300] for k in ("editor", "editor_custom", "terminal") if k in body})
+                    fields = {k: str(body[k])[:300] for k in ("editor", "editor_custom", "terminal", "theme") if k in body}
+                    if fields.get("theme") not in (None, "system", "light", "dark"):
+                        return self.err(400, "theme must be system, light or dark")
+                    app.store.update_settings(**fields)
                     return self.ok(app.settings())
                 if path == "/api/open":
                     if not app.repo(body["path"]):

@@ -359,6 +359,15 @@ class ServerTest(unittest.TestCase):
         code, _ = self.call("/api/open", {"path": str(self.repo), "target": "rm -rf"})
         self.assertEqual(code, 400)
 
+    def test_settings_endpoint_validates_theme(self):
+        code, r = self.call("/api/settings", {"theme": "dark", "junk": 1})
+        self.assertEqual((code, r["settings"]["theme"]), (200, "dark"))
+        code, _ = self.call("/api/settings", {"theme": "pink"})
+        self.assertEqual(code, 400)
+        code, r = self.call("/api/settings")
+        self.assertEqual(r["settings"], {"theme": "dark"})
+        self.assertIn("editors", r)
+
     def test_graph_endpoint(self):
         code, g = self.call("/api/graph?path=" + urllib.request.quote(str(self.repo)))
         self.assertEqual(code, 200)

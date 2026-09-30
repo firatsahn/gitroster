@@ -57,9 +57,40 @@ def _mac_app(name):
     return bool(name) and any(os.path.isdir(f"{d}/{name}.app") or glob.glob(f"{d}/{name}*.app") for d in ("/Applications", f"{HOME}/Applications"))
 
 
+_index = {"at": 0.0, "map": {}}
+
+
+def _path_index():
+    """name -> full path for everything on PATH, built with one listdir per folder.
+
+    shutil.which stats every command in every PATH folder, which takes seconds on WSL
+    where the Windows folders are on a slow mount.
+    """
+    if not _index["map"] or time.time() - _index["at"] > 60:
+        found = {}
+        for d in os.environ.get("PATH", "").split(os.pathsep):
+            try:
+                names = os.listdir(d)
+            except OSError:
+                continue
+            for n in names:
+                full = os.path.join(d, n)
+                found.setdefault(n, full)
+                stem, ext = os.path.splitext(n)
+                if WIN and ext.lower() in (".exe", ".cmd", ".bat", ".com"):
+                    found.setdefault(stem.lower(), full)
+        _index.update(at=time.time(), map=found)
+    return _index["map"]
+
+
+def _which(cmd):
+    path = _path_index().get(cmd) or (_path_index().get(cmd.lower()) if WIN else None)
+    return path if path and os.path.isfile(path) and os.access(path, os.X_OK) else None
+
+
 def _find_cmd(cmds):
     for c in cmds:
-        found = shutil.which(c)
+        found = _which(c)
         if found:
             return found
     for c in cmds:  # JetBrains Toolbox installs launchers here
@@ -87,7 +118,7 @@ def _terminal_available(entry):
     if WIN:
         return tid in ("wt", "powershell", "cmd") and bool(_find_cmd(cmds) or tid == "cmd")
     if WSL and tid == "wt":
-        return bool(shutil.which("wt.exe"))
+        return bool(_which("wt.exe"))
     return not app and bool(cmds) and tid not in ("wt", "powershell", "cmd") and bool(_find_cmd(cmds))
 
 
@@ -201,7 +232,7 @@ def open_repo(path, target, settings=None):
             os.startfile(path)
         elif MAC:
             _spawn(["open", path])
-        elif WSL and shutil.which("explorer.exe"):
+        elif WSL and _which("explorer.exe"):
             _spawn(["explorer.exe", _win_path(path)])
         else:
             _spawn(["xdg-open", path])

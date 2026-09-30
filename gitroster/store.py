@@ -57,7 +57,7 @@ class Store:
         return self._load(self.config / "settings.json")
 
     def update_settings(self, **fields):
-        allowed = {"editor", "editor_custom", "terminal"}
+        allowed = {"editor", "editor_custom", "terminal", "theme"}
         with self.lock:
             data = self._load(self.config / "settings.json")
             data.update({k: v for k, v in fields.items() if k in allowed})
