@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#111"/>
+  <!-- git history line -->
+  <path d="M17 14v36" stroke="#fff" stroke-width="2.6" stroke-linecap="round" opacity=".5"/>
+  <!-- roster rows: one commit dot + one entry per repo -->
+  <circle cx="17" cy="18" r="4.2" fill="#fff"/>
+  <rect x="28" y="15" width="26" height="6" rx="3" fill="#fff"/>
+  <circle cx="17" cy="32" r="4.2" fill="#fff"/>
+  <rect x="28" y="29" width="20" height="6" rx="3" fill="#fff" opacity=".7"/>
+  <circle cx="17" cy="46" r="4.2" fill="#fff"/>
+  <rect x="28" y="43" width="23" height="6" rx="3" fill="#fff" opacity=".45"/>
+</svg>

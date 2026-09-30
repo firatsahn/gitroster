@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gitroster</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#fff;--fg:#111;--mute:#777;--line:#e6e6e6;--card:#fafafa;--warn:#b45309;--ok:#15803d;--bar:#111}
+@media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--mute:#8a8a8a;--line:#262626;--card:#181818;--warn:#f59e0b;--ok:#4ade80;--bar:#eee}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,sans-serif}
+main{max-width:920px;margin:0 auto;padding:32px 16px 80px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.logo{width:24px;height:24px;border-radius:6px}
+h1{font-size:18px;margin:0;font-weight:600;letter-spacing:-.01em}
+.sub{color:var(--mute);font-size:13px}
+.sp{flex:1}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:1px solid var(--line);border-radius:6px;padding:3px 10px;cursor:pointer}
+button:hover{border-color:var(--fg)}
+button:disabled{opacity:.5;cursor:default}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 10px}
+input{width:180px}
+nav{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:12px}
+nav a{padding:6px 0;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+nav a.on{color:var(--fg);border-color:var(--fg)}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.chip{border-radius:12px;padding:1px 10px;font-size:12px;color:var(--mute)}
+.chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.row{border-top:1px solid var(--line);padding:12px 0}
+.row:last-child{border-bottom:1px solid var(--line)}
+.top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;cursor:pointer}
+.name{font-weight:600}
+.pin{border:0;padding:0 2px;color:var(--mute);cursor:pointer;background:none}
+.pin.on{color:var(--fg)}
+.path,.mono{font-family:ui-monospace,monospace;font-size:12px;color:var(--mute)}
+.tag{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:0 7px;color:var(--mute);white-space:nowrap}
+.tag.port{color:var(--ok);border-color:var(--ok)}
+.tag.warn{color:var(--warn);border-color:var(--warn)}
+.meta{color:var(--mute);font-size:12px}
+.detail{display:none;margin-top:10px;padding:12px;background:var(--card);border-radius:6px}
+.row.open .detail{display:block}
+.detail .line{margin:6px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.k{color:var(--mute);width:72px;flex:none}
+code{font-family:ui-monospace,monospace;font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px;cursor:copy;word-break:break-all}
+.go{padding:0 8px;font-size:12px}
+textarea{width:100%;min-height:54px;resize:vertical;font-size:13px}
+.ai{white-space:pre-wrap;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;margin-top:6px}
+.log{white-space:pre-wrap;font:11px/1.4 ui-monospace,monospace;color:var(--mute);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;max-height:160px;overflow:auto;margin-top:6px}
+table{width:100%;border-collapse:collapse}
+td{padding:8px 8px 8px 0;border-top:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:1px solid var(--line)}
+td.r{text-align:right;white-space:nowrap}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:500;margin:28px 0 6px}
+.stats{display:flex;gap:28px;flex-wrap:wrap;margin:4px 0 8px}
+.stats b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.stats span{color:var(--mute);font-size:12px}
+.empty{color:var(--mute);padding:12px 0}
+a{color:inherit}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;border-radius:6px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.on{opacity:1}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img class="logo" src="/icon.svg" alt="">
+    <h1>gitroster</h1>
+    <span class="sub" id="sub">loading…</span>
+    <span class="sp"></span>
+    <input id="q" placeholder="filter  ( / )" autocomplete="off">
+    <button id="re">Rescan</button>
+  </header>
+
+  <nav id="tabs">
+    <a data-tab="repos" class="on">Repos</a>
+    <a data-tab="ports">Ports</a>
+    <a data-tab="cleanup">Cleanup</a>
+  </nav>
+
+  <section id="repos">
+    <div class="bar" id="chips"></div>
+    <div class="bar"><span class="meta">Sort</span>
+      <select id="sort"><option value="recent">last commit</option><option value="size">size</option><option value="name">name</option></select>
+    </div>
+    <div id="repolist"></div>
+  </section>
+  <section id="ports" class="hide"></section>
+  <section id="cleanup" class="hide"></section>
+</main>
+<div id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const home = p => p.replace(/^\/home\/[^/]+/, '~');
+const size = b => b == null ? '?' : b >= 2**30 ? (b/2**30).toFixed(1)+' GB' : b >= 2**20 ? (b/2**20).toFixed(0)+' MB' : Math.max(1, Math.round(b/1024))+' KB';
+const days = t => t ? (Date.now()/1000 - t) / 86400 : Infinity;
+const ago = t => { const d = days(t); return d === Infinity ? 'no commits' : d < 1 ? 'today' : d < 60 ? Math.floor(d)+'d ago' : d < 700 ? Math.floor(d/30)+'mo ago' : Math.floor(d/365)+'y ago'; };
+const DORMANT = 90;
+
+let S = {repos: [], envs: [], ports: [], containers: [], meta: {}};
+let ui = {tab: 'repos', chip: 'all', open: new Set(), busy: new Set(), logs: {}};
+try { Object.assign(ui, JSON.parse(localStorage.getItem('gr-ui') || '{}'), {open: new Set(), busy: new Set(), logs: {}}); } catch {}
+const saveUi = () => { try { localStorage.setItem('gr-ui', JSON.stringify({tab: ui.tab, chip: ui.chip, sort: $('#sort').value})); } catch {} };
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2200); }
+async function api(path, body) {
+  const r = await fetch(path, body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+const meta = r => S.meta[r.path] || {};
+const running = r => r.ports.length > 0;
+const dormant = r => !running(r) && days(r.last_commit) > DORMANT;
+const repoByPath = () => Object.fromEntries(S.repos.map(r => [r.path, r]));
+
+/* ---------- data ---------- */
+async function load() {
+  try { S = await api('/api/state'); if (!S.repos) S = {repos: [], envs: [], ports: [], containers: [], meta: {}}; } catch (e) { toast(e.message); }
+  render();
+  await rescan();
+}
+async function rescan() {
+  $('#re').disabled = true; $('#sub').textContent = 'scanning…';
+  try { S = await api('/api/scan'); } catch (e) { toast(e.message); }
+  $('#re').disabled = false; render();
+}
+async function pollPorts() {
+  if (document.hidden || $('#re').disabled) return;
+  const a = document.activeElement;
+  if (a && (a.tagName === 'TEXTAREA')) return;
+  try { const p = await api('/api/ports'); S.ports = p.ports; S.containers = p.containers;
+    for (const r of S.repos) r.ports = [...new Set(S.ports.filter(x => x.repo === r.path).map(x => x.port))].sort((a, b) => a - b);
+    render(); } catch {}
+}
+
+/* ---------- render ---------- */
+function render() {
+  const q = $('#q').value.toLowerCase();
+  const total = S.repos.reduce((a, r) => a + (r.size || 0), 0);
+  $('#sub').textContent = S.scanned ? `${S.repos.length} repos · ${S.ports.length} ports · ${size(total)}` : 'no scan yet';
+  document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === ui.tab));
+  for (const id of ['repos', 'ports', 'cleanup']) $('#' + id).classList.toggle('hide', id !== ui.tab);
+  if (ui.tab === 'repos') renderRepos(q);
+  if (ui.tab === 'ports') renderPorts(q);
+  if (ui.tab === 'cleanup') renderCleanup(q);
+}
+
+function chips() {
+  const R = S.repos.filter(r => !meta(r).ignored);
+  const n = {all: R.length, running: R.filter(running).length, uncommitted: R.filter(r => r.dirty).length,
+    unpushed: R.filter(r => r.ahead).length, mine: R.filter(r => r.kind === 'mine').length, fork: R.filter(r => r.kind === 'fork').length, clone: R.filter(r => r.kind === 'clone').length, local: R.filter(r => r.kind === 'local').length, dormant: R.filter(dormant).length, pinned: R.filter(r => meta(r).pinned).length,
+    ignored: S.repos.filter(r => meta(r).ignored).length};
+  $('#chips').innerHTML = Object.entries(n).map(([k, v]) =>
+    `<button class="chip ${ui.chip === k ? 'on' : ''}" data-chip="${k}">${k} ${v}</button>`).join('');
+}
+
+function renderRepos(q) {
+  chips();
+  const sort = $('#sort').value;
+  const f = {all: r => true, running, uncommitted: r => r.dirty, unpushed: r => r.ahead > 0, mine: r => r.kind === 'mine', fork: r => r.kind === 'fork', clone: r => r.kind === 'clone', local: r => r.kind === 'local', dormant, pinned: r => meta(r).pinned, ignored: r => true}[ui.chip];
+  let list = S.repos.filter(r => (ui.chip === 'ignored') === !!meta(r).ignored && f(r) &&
+    (!q || `${r.name} ${r.path} ${r.stack.join(' ')} ${r.summary} ${meta(r).note || ''}`.toLowerCase().includes(q)));
+  list.sort((a, b) => (meta(b).pinned ? 1 : 0) - (meta(a).pinned ? 1 : 0) || (sort === 'size' ? (b.size || 0) - (a.size || 0) : sort === 'name' ? a.name.localeCompare(b.name) : (b.last_commit || 0) - (a.last_commit || 0)));
+  $('#repolist').innerHTML = list.length ? list.map(repoRow).join('') : '<div class="empty">Nothing here.</div>';
+}
+
+function repoRow(r) {
+  const m = meta(r), open = ui.open.has(r.path), p = r.path;
+  return `<div class="row ${open ? 'open' : ''}" data-path="${esc(p)}">
+    <div class="top" data-toggle>
+      <button class="pin ${m.pinned ? 'on' : ''}" data-pin title="Pin">${m.pinned ? '★' : '☆'}</button>
+      <span class="name">${esc(r.name)}</span>
+      ${r.ports.length ? `<span class="tag port">:${r.ports.slice(0, 3).join(' :')}${r.ports.length > 3 ? ` +${r.ports.length - 3}` : ''}</span>` : ''}
+      ${r.dirty ? '<span class="tag warn">uncommitted</span>' : ''}
+      ${r.ahead ? `<span class="tag warn">↑${r.ahead} unpushed</span>` : ''}
+      ${dormant(r) ? '<span class="tag">dormant</span>' : ''}
+      <span class="tag">${esc(r.kind)}</span>
+      ${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join('')}
+      <span class="sp"></span>
+      <span class="meta">${size(r.size)} · ${ago(r.last_commit)}</span>
+    </div>
+    <div class="path">${esc(home(p))}${r.branch ? ` · ${esc(r.branch)}` : ''}</div>
+    ${open ? detail(r) : ''}
+  </div>`;
+}
+
+function detail(r) {
+  const m = meta(r), busy = ui.busy;
+  const cmd = c => `<code>${esc(c)}</code>`;
+  const ports = S.ports.filter(x => x.repo === r.path);
+  let h = '<div class="detail">';
+  if (r.summary) h += `<div class="line">${esc(r.summary)}</div>`;
+  h += `<div class="line"><span class="k">note</span></div><textarea data-note placeholder="What is this? How do you use it?">${esc(m.note || '')}</textarea>`;
+  if (r.remote) h += `<div class="line"><span class="k">remote</span><span class="mono">${esc(r.remote)}</span></div>`;
+  if (r.envs.length) h += `<div class="line"><span class="k">env</span><span>${r.envs.map(e => `${cmd(home(e.path))} <span class="meta">${e.kind}${e.python ? ' ' + esc(e.python) : ''} · ${size(e.size)}</span>`).join('<br>')}</span></div>`;
+  if (r.activate) h += `<div class="line"><span class="k">activate</span>${cmd('cd ' + home(r.path) + ' && ' + r.activate)}</div>`;
+  if (r.setup.length) h += `<div class="line"><span class="k">setup</span>${r.setup.map(cmd).join(' ')}</div>`;
+  if (r.run.length) h += `<div class="line"><span class="k">run</span>${r.run.map(c => `<span>${cmd(c)} <button class="go" data-start="${esc(c)}" ${busy.has(r.path) ? 'disabled' : ''}>▶ Start</button></span>`).join('')}</div>`;
+  else h += '<div class="line meta">No run command detected.</div>';
+  if (r.cmds.length) h += `<div class="line"><span class="k">README</span>${r.cmds.map(cmd).join(' ')}</div>`;
+  if (r.expected_ports.length) h += `<div class="line"><span class="k">expects</span><span class="meta">${r.expected_ports.map(p => ':' + p).join(' ')} (from README)</span></div>`;
+  if (ports.length) h += `<div class="line"><span class="k">listening</span>${ports.map(p => `<a href="http://localhost:${p.port}" target="_blank" rel="noopener">:${p.port}</a> <span class="meta">${esc(p.proc)}</span>`).join(' · ')}</div>`;
+  if (r.big_files.length) h += `<div class="line"><span class="k">large</span><span>${r.big_files.map(f => `<span class="mono">${esc(f.path)}</span> <span class="meta">${size(f.size)}</span>`).join('<br>')}${r.big_total > r.big_files.reduce((a, f) => a + f.size, 0) ? `<br><span class="meta">${size(r.big_total)} in total</span>` : ''}</span></div>`;
+  h += `<div class="line"><span class="k">AI</span><button class="go" data-explain ${busy.has('ai' + r.path) ? 'disabled' : ''}>${busy.has('ai' + r.path) ? 'Asking…' : m.ai ? 'Ask again' : 'Explain how to run'}</button><span class="meta">uses your local agent · nothing is run</span></div>`;
+  if (m.ai) h += `<div class="ai">${esc(m.ai)}</div><div class="meta">AI-generated, unverified · ${ago(m.ai_at)}</div>`;
+  if (ui.logs[r.path]) h += `<div class="log">${esc(ui.logs[r.path])}</div>`;
+  h += `<div class="line"><span class="k"></span><button class="go" data-ignore>${m.ignored ? 'Unignore' : 'Ignore'}</button></div>`;
+  return h + '</div>';
+}
+
+function renderPorts(q) {
+  const rp = repoByPath();
+  const ports = S.ports.filter(p => !q || `${p.port} ${p.proc} ${p.cmd} ${p.repo || ''}`.toLowerCase().includes(q));
+  const owned = ports.filter(p => p.repo).length;
+  let h = `<div class="stats"><div><b>${ports.length}</b><span>listening</span></div><div><b>${owned}</b><span>matched to a repo</span></div><div><b>${ports.filter(p => p.exposed).length}</b><span>on all interfaces</span></div></div>`;
+  h += '<table>' + (ports.length ? ports.map(p => `<tr>
+    <td class="mono"><b><a href="http://localhost:${p.port}" target="_blank" rel="noopener">${p.port}</a></b></td>
+    <td>${p.repo ? esc(rp[p.repo].name) : '<span class="meta">unknown</span>'}
+      ${p.exposed ? '<span class="tag warn">all interfaces</span>' : ''}
+      <div class="path">${esc(p.proc)} · pid ${p.pid} · up ${ago(p.since)}</div>
+      <div class="path" title="${esc(p.cmd)}">${esc(p.cmd.slice(0, 110))}</div></td>
+    <td class="r"><button data-kill="${p.pid}" data-port="${p.port}">Stop</button></td></tr>`).join('') : '<tr><td class="empty">Nothing listening.</td></tr>') + '</table>';
+  if (S.containers.length) {
+    h += '<h2>Docker</h2><table>' + S.containers.map(c => `<tr><td><b>${esc(c.name)}</b> <span class="meta">${esc(c.image)}</span>
+      <div class="path">${esc(c.ports)} · ${esc(c.status)}</div></td><td class="r">${c.repo ? esc(rp[c.repo].name) : ''}</td></tr>`).join('') + '</table>';
+  }
+  $('#ports').innerHTML = h;
+}
+
+function cleanupItems() {
+  const rp = repoByPath(), items = new Map();
+  for (const r of S.repos) {
+    for (const x of r.reclaimable) items.set(x.path, {path: x.path, kind: x.kind, size: x.size || 0, repo: r});
+    for (const e of r.envs) items.set(e.path, {path: e.path, kind: e.kind, size: e.size || 0, repo: r});
+  }
+  for (const e of S.envs) if (!e.repo) items.set(e.path, {path: e.path, kind: e.kind + ' (no repo)', size: e.size || 0, repo: null});
+  return [...items.values()].sort((a, b) => b.size - a.size);
+}
+
+function renderCleanup(q) {
+  const items = cleanupItems().filter(i => !q || (i.path + (i.repo ? i.repo.name : '')).toLowerCase().includes(q));
+  const idle = items.filter(i => !i.repo || !running(i.repo));
+  const bigs = S.repos.flatMap(r => r.big_files.map(f => ({...f, repo: r}))).sort((a, b) => b.size - a.size).slice(0, 12);
+  const dorm = S.repos.filter(r => dormant(r) && !meta(r).ignored).sort((a, b) => (b.size || 0) - (a.size || 0));
+  const rm = p => `rm -rf '${p.replace(/'/g, "'\\''")}'`;
+  let h = `<div class="stats">
+    <div><b>${size(idle.reduce((a, i) => a + i.size, 0))}</b><span>in envs & build folders (not in use)</span></div>
+    <div><b>${size(S.repos.reduce((a, r) => a + (r.big_total || 0), 0))}</b><span>in large files</span></div>
+    <div><b>${dorm.length}</b><span>dormant repos · ${size(dorm.reduce((a, r) => a + (r.size || 0), 0))}</span></div></div>
+    <div class="meta">gitroster never deletes anything. Copy the command and run it yourself.</div>`;
+  h += '<h2>Environments & build folders</h2><table>' + (items.length ? items.map(i => `<tr>
+    <td><span class="mono">${esc(home(i.path))}</span><div class="meta">${esc(i.kind)}${i.repo ? ' · ' + esc(i.repo.name) + ' · last commit ' + ago(i.repo.last_commit) : ''}${i.repo && running(i.repo) ? ' · <b>in use</b>' : ''}</div></td>
+    <td class="r">${size(i.size)}</td><td class="r"><button data-rm="${esc(rm(i.path))}">Copy rm</button></td></tr>`).join('') : '<tr><td class="empty">Nothing found.</td></tr>') + '</table>';
+  if (bigs.length) h += '<h2>Largest files</h2><table>' + bigs.map(f => `<tr><td><span class="mono">${esc(f.path)}</span><div class="meta">${esc(f.repo.name)}</div></td><td class="r">${size(f.size)}</td>
+    <td class="r"><button data-rm="${esc(rm(f.repo.path + '/' + f.path))}">Copy rm</button></td></tr>`).join('') + '</table>';
+  if (dorm.length) h += '<h2>Dormant repos (no commit in ' + DORMANT + '+ days, nothing running)</h2><table>' + dorm.map(r => `<tr><td><b>${esc(r.name)}</b>${r.dirty ? ' <span class="tag warn">uncommitted</span>' : ''}${r.ahead ? ' <span class="tag warn">↑' + r.ahead + ' unpushed</span>' : ''}
+    <div class="path">${esc(home(r.path))}</div></td><td class="r">${size(r.size)}<div class="meta">${ago(r.last_commit)}</div></td>
+    <td class="r"><button data-rm="${esc(rm(r.path))}">Copy rm</button></td></tr>`).join('') + '</table>';
+  $('#cleanup').innerHTML = h;
+}
+
+/* ---------- events ---------- */
+async function act(fn) { try { await fn(); } catch (e) { toast(e.message); } render(); }
+
+document.addEventListener('click', e => {
+  const t = e.target, row = t.closest('.row'), path = row && row.dataset.path;
+  if (t.closest('[data-tab]')) { ui.tab = t.dataset.tab; saveUi(); return render(); }
+  if (t.dataset.chip) { ui.chip = t.dataset.chip; saveUi(); return render(); }
+  if (t.dataset.kill) return act(async () => {
+    if (!confirm(`Stop process ${t.dataset.kill} on port ${t.dataset.port}?`)) return;
+    await api('/api/kill', {pid: +t.dataset.kill}); toast('Stopped'); setTimeout(pollPorts, 600);
+  });
+  if (t.dataset.rm) { navigator.clipboard?.writeText(t.dataset.rm); return toast('Copied'); }
+  if (t.tagName === 'CODE') { navigator.clipboard?.writeText(t.textContent); return toast('Copied'); }
+  if (!row) return;
+  const r = S.repos.find(x => x.path === path);
+  if (t.hasAttribute('data-pin')) return act(async () => { S.meta[path] = await api('/api/meta', {path, pinned: !meta(r).pinned}); });
+  if (t.hasAttribute('data-ignore')) return act(async () => { S.meta[path] = await api('/api/meta', {path, ignored: !meta(r).ignored}); });
+  if (t.dataset.start) return act(async () => {
+    if (!confirm(`Run in ${home(path)}:\n\n${t.dataset.start}`)) return;
+    ui.busy.add(path); render();
+    try { await api('/api/start', {path, cmd: t.dataset.start}); toast('Started'); } finally { ui.busy.delete(path); }
+    for (const ms of [1500, 4000]) setTimeout(async () => { ui.logs[path] = (await api('/api/log?path=' + encodeURIComponent(path))).log; pollPorts(); render(); }, ms);
+  });
+  if (t.hasAttribute('data-explain')) return act(async () => {
+    ui.busy.add('ai' + path); render();
+    try { S.meta[path] = await api('/api/explain', {path}); } finally { ui.busy.delete('ai' + path); }
+  });
+  if (t.closest('[data-toggle]') && !t.closest('button')) {
+    ui.open.has(path) ? ui.open.delete(path) : ui.open.add(path); render();
+  }
+});
+document.addEventListener('focusout', e => {
+  if (!e.target.hasAttribute('data-note')) return;
+  const path = e.target.closest('.row').dataset.path;
+  api('/api/meta', {path, note: e.target.value}).then(m => { S.meta[path] = m; }).catch(err => toast(err.message));
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); $('#q').focus(); }
+  if (e.key === 'Escape') { $('#q').value = ''; $('#q').blur(); render(); }
+});
+$('#q').addEventListener('input', render);
+$('#sort').addEventListener('change', () => { saveUi(); render(); });
+$('#re').addEventListener('click', rescan);
+try { const s = JSON.parse(localStorage.getItem('gr-ui') || '{}').sort; if (s) $('#sort').value = s; } catch {}
+load();
+setInterval(pollPorts, 5000);
+</script>
+</body>
+</html>

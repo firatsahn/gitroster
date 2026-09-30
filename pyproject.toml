@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gitroster"
+dynamic = ["version"]
+description = "Find the repos, virtual envs and open ports you forgot about, and how to run them."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["developer-tools", "git", "ports", "virtualenv", "dashboard", "local-first"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Web Environment",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development",
+]
+dependencies = []
+
+[project.scripts]
+gitroster = "gitroster.cli:main"
+
+[tool.setuptools]
+packages = ["gitroster"]
+
+[tool.setuptools.dynamic]
+version = { attr = "gitroster.__version__" }
+
+[tool.setuptools.package-data]
+gitroster = ["static/*"]

@@ -1,0 +1,168 @@
+"""Local HTTP server: JSON API + one static page. Binds to 127.0.0.1 only."""
+import json
+import os
+import shlex
+import signal
+import subprocess
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+from . import agent, procs, scanner
+from .store import Store
+
+STATIC = Path(__file__).parent / "static"
+TYPES = {".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
+
+
+class App:
+    def __init__(self, roots, port, store=None, agent_cmd=None):
+        self.roots, self.port, self.agent_cmd = roots, port, agent_cmd
+        self.store = store or Store()
+        self.scan = self.store.cached_scan()
+        self.scanning = False
+        self.lock = threading.Lock()
+
+    def repo(self, path):
+        return next((r for r in self.scan.get("repos", []) if r["path"] == path), None)
+
+    def do_scan(self):
+        with self.lock:
+            self.scanning = True
+        try:
+            result = scanner.scan(self.roots)
+            self.scan = result
+            self.store.save_scan(result)
+        finally:
+            self.scanning = False
+        return self.state()
+
+    def live_ports(self):
+        ports, containers = procs.listening(), procs.docker_containers()
+        procs.link(ports, containers, self.scan.get("repos", []), self.scan.get("envs", []))
+        return ports, containers
+
+    def state(self):
+        s = dict(self.scan)
+        s["meta"] = self.store.meta()
+        s["scanning"] = self.scanning
+        return s
+
+    def start(self, path, cmd):
+        repo = self.repo(path)
+        if not repo or cmd not in repo["run"]:
+            raise ValueError("command is not a detected run command for this repo")
+        log = self.store.log_path(Path(path).name)
+        with open(log, "ab") as f:
+            f.write(f"\n$ {cmd}   [{time.ctime()}]\n".encode())
+            proc = subprocess.Popen(shlex.split(cmd), cwd=path, stdout=f, stderr=subprocess.STDOUT,
+                                    stdin=subprocess.DEVNULL, start_new_session=True)
+        threading.Thread(target=proc.wait, daemon=True).start()  # reap it when it exits
+        return {"pid": proc.pid, "log": str(log)}
+
+    def tail(self, path, n=4000):
+        log = self.store.log_path(Path(path).name)
+        try:
+            with open(log, "rb") as f:
+                f.seek(0, 2)
+                f.seek(max(0, f.tell() - n))
+                return f.read().decode(errors="replace")
+        except OSError:
+            return ""
+
+
+def make_handler(app):
+    hosts = {f"127.0.0.1:{app.port}", f"localhost:{app.port}"}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def send(self, code, body, ctype="application/json"):
+            data = body if isinstance(body, bytes) else body.encode()
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def ok(self, obj):
+            self.send(200, json.dumps(obj))
+
+        def err(self, code, msg):
+            self.send(code, json.dumps({"error": msg}))
+
+        def do_GET(self):
+            if self.headers.get("Host") not in hosts:  # DNS rebinding guard
+                return self.err(403, "bad host")
+            path = self.path.split("?")[0]
+            if path in ("/", "/index.html"):
+                return self.send(200, (STATIC / "index.html").read_bytes(), TYPES[".html"])
+            if path in ("/icon.svg", "/favicon.svg", "/favicon.ico"):
+                return self.send(200, (STATIC / "icon.svg").read_bytes(), TYPES[".svg"])
+            if path == "/api/state":
+                return self.ok(app.state())
+            if path == "/api/scan":
+                return self.ok(app.do_scan())
+            if path == "/api/ports":
+                ports, containers = app.live_ports()
+                return self.ok({"ports": ports, "containers": containers})
+            if path == "/api/log":
+                q = dict(x.split("=", 1) for x in self.path.partition("?")[2].split("&") if "=" in x)
+                from urllib.parse import unquote
+                p = unquote(q.get("path", ""))
+                return self.ok({"log": app.tail(p) if app.repo(p) else ""})
+            self.err(404, "not found")
+
+        def do_POST(self):
+            origin = self.headers.get("Origin", "").split("//")[-1]
+            if self.headers.get("Host") not in hosts or origin not in hosts:
+                return self.err(403, "forbidden")
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+            except ValueError:
+                return self.err(400, "bad json")
+            path = self.path
+            try:
+                if path == "/api/kill":
+                    pid = int(body["pid"])
+                    if pid not in {p["pid"] for p in procs.listening()}:
+                        return self.err(404, "not a listening process")
+                    os.kill(pid, signal.SIGTERM)
+                    return self.ok({"ok": True})
+                if path == "/api/start":
+                    return self.ok(app.start(body["path"], body["cmd"]))
+                if path == "/api/meta":
+                    if not app.repo(body["path"]):
+                        return self.err(404, "unknown repo")
+                    fields = {k: body[k] for k in ("note", "pinned", "ignored") if k in body}
+                    if "note" in fields:
+                        fields["note"] = str(fields["note"])[:4000]
+                    return self.ok(app.store.update_meta(body["path"], **fields))
+                if path == "/api/explain":
+                    repo = app.repo(body["path"])
+                    if not repo:
+                        return self.err(404, "unknown repo")
+                    text = agent.explain(repo, app.agent_cmd)
+                    return self.ok(app.store.update_meta(body["path"], ai=text, ai_at=time.time()))
+            except (KeyError, ValueError, TypeError) as e:
+                return self.err(400, f"bad request: {e}")
+            except RuntimeError as e:
+                return self.err(500, str(e))
+            except OSError as e:
+                return self.err(500, str(e))
+            self.err(404, "not found")
+
+    return Handler
+
+
+def serve(app):
+    srv = ThreadingHTTPServer(("127.0.0.1", app.port), make_handler(app))
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        srv.server_close()
