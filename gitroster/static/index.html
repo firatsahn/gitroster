@@ -69,6 +69,11 @@ html{overflow-y:scroll}
 .pm{max-width:var(--pw,920px);margin:0 auto;padding:32px 16px 80px}
 .ph{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
 #ptags .tag{margin-left:4px}
+#plink{display:inline-flex;align-items:center;gap:5px;margin-left:6px;padding:1px 10px 1px 8px;border:1px solid var(--line);border-radius:12px;font-size:12px;color:var(--fg);text-decoration:none;vertical-align:middle}
+#plink:hover{border-color:var(--fg)}
+#plink.hide{display:none}
+#sback{margin-bottom:10px}
+#sback.hide{display:none}
 #ptabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:16px}
 #ptabs a{padding:6px 0;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 #ptabs a.on{color:var(--fg);border-color:var(--fg)}
@@ -117,7 +122,10 @@ pre.readme{background:var(--card);border:1px solid var(--line);border-radius:6px
 .sr{padding:3px 0;overflow:hidden;text-overflow:ellipsis}
 .snip{font:12px ui-monospace,monospace;color:var(--mute)}
 mark{background:rgba(245,158,11,.35);color:inherit;border-radius:2px}
-.big{width:100%;max-width:440px}
+.big{width:100%;padding-right:34px}
+.sbox{position:relative;flex:0 1 440px;width:100%;display:inline-flex;align-items:center}
+.x.clear{position:absolute;right:5px;width:24px;height:24px;border-color:transparent;background:none;color:var(--mute)}
+.x.clear:hover{color:var(--fg);border-color:var(--line)}
 input[type=checkbox],input[type=radio]{width:auto}
 label{display:inline-flex;gap:4px;align-items:center;color:var(--mute);font-size:12px}
 .gr.sel{background:var(--card)}
@@ -164,7 +172,8 @@ a.br{cursor:pointer;text-decoration:underline dotted}
     <div id="repolist"></div>
   </section>
   <section id="search" class="hide">
-    <div class="bar"><input id="sq" class="big" placeholder="Search all your repos" autocomplete="off">
+    <div id="sback" class="hide"></div>
+    <div class="bar"><span class="sbox"><input id="sq" class="big" placeholder="Search all your repos" autocomplete="off"><button id="sclear" class="x clear hide" aria-label="Clear search" title="Clear (Esc)"><svg width="12" height="12" viewBox="0 0 14 14"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></span>
       <label><input type="checkbox" data-scope="code" checked>code</label><label><input type="checkbox" data-scope="files" checked>files</label><label><input type="checkbox" data-scope="commits" checked>commits</label><label><input type="checkbox" data-scope="packages" checked>packages</label><label><input type="checkbox" id="sre">regex</label></div>
     <div id="sres"></div>
   </section>
@@ -172,7 +181,7 @@ a.br{cursor:pointer;text-decoration:underline dotted}
 </main>
 <div id="page"><div class="pm">
   <header class="ph">
-    <div><b id="ptitle"></b> <span id="ptags"></span> <a id="plink" class="br hide" target="_blank" rel="noopener"></a><div class="path" id="ppath"></div></div>
+    <div><b id="ptitle"></b> <span id="ptags"></span> <a id="plink" class="hide" target="_blank" rel="noopener"></a><div class="path" id="ppath"></div></div>
     <span class="sp"></span>
     <button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button>
     <button id="pclose" class="x" aria-label="Close" title="Close (Esc)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
@@ -421,8 +430,13 @@ const hl = (text, q, regex) => {
 };
 const recent = () => { try { return JSON.parse(localStorage.getItem('gr-recent') || '[]'); } catch { return []; } };
 const remember = q => { try { localStorage.setItem('gr-recent', JSON.stringify([q, ...recent().filter(x => x !== q)].slice(0, 8))); } catch {} };
+function showBack() {
+  const b = $('#sback'), r = ui.back && repoOf(ui.back.path);
+  b.classList.toggle('hide', !r);
+  if (r) b.innerHTML = `<button class="go" data-back>← Back to ${esc(r.name)} · ${esc((PTABS.find(t => t[0] === ui.back.tab) || ['', 'Overview'])[1])}</button>`;
+}
 function searchFor(q, scopes, regex = false) {
-  $('#sq').value = q; $('#sre').checked = regex;
+  $('#sq').value = q; $('#sre').checked = regex; $('#sclear').classList.toggle('hide', !q);
   document.querySelectorAll('[data-scope]').forEach(x => { x.checked = !scopes || scopes.includes(x.dataset.scope); });
   runSearch();
 }
@@ -473,6 +487,7 @@ const jget = (path, params) => api(path + '?' + new URLSearchParams(params));
 const LANG_COLOR = ['#2563eb', '#d97706', '#16a34a', '#9333ea', '#dc2626', '#0891b2', '#be185d', '#6b7280'];
 
 function openPage(path, tab = 'overview', o = {}) {
+  ui.back = null; showBack();
   if (pg.path !== path) Object.assign(pg, {ref: 'HEAD', dir: '', file: null, line: null, cache: {}});
   Object.assign(pg, {path, tab, focus: o.focus || '', commit: o.commit || null});
   if (o.file) { pg.file = o.file; pg.line = o.line || null; pg.dir = o.file.split('/').slice(0, -1).join('/'); }
@@ -481,6 +496,8 @@ function openPage(path, tab = 'overview', o = {}) {
 }
 const closePage = () => $('#page').classList.remove('on');
 const ovOf = path => pg.cache.ovp ||= jget('/api/overview', {path});
+const ICON_GH = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+const ICON_LINK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.5h4.5V7M13.5 2.5L7 9M11.5 9.5v3a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1h3"/></svg>';
 const HOSTS = {'github.com': 'GitHub', 'gitlab.com': 'GitLab', 'bitbucket.org': 'Bitbucket'};
 
 async function renderPage() {
@@ -491,7 +508,7 @@ async function renderPage() {
   $('#ppath').textContent = home(r.path) + (r.branch ? ' · ' + r.branch : '');
   $('#ptabs').innerHTML = PTABS.map(([k, l]) => `<a data-ptab="${k}" class="${pg.tab === k ? 'on' : ''}">${l}</a>`).join('');
   const tab = pg.tab, path = r.path, body = $('#pbody');
-  ovOf(path).then(ov => { const a = $('#plink'); if (pg.path === path && ov.web_url) { a.href = ov.web_url; a.textContent = (HOSTS[ov.web_url.split('/')[2]] || 'Remote') + ' ↗'; a.classList.remove('hide'); } }).catch(() => {});
+  ovOf(path).then(ov => { const a = $('#plink'); if (pg.path === path && ov.web_url) { const host = ov.web_url.split('/')[2]; a.href = ov.web_url; a.innerHTML = (host === 'github.com' ? ICON_GH : ICON_LINK) + (HOSTS[host] || 'Remote'); a.classList.remove('hide'); } }).catch(() => {});
   $('#plink').classList.add('hide');
   body.innerHTML = '<div class="empty">Loading…</div>';
   try {
@@ -623,7 +640,7 @@ $('#page').addEventListener('click', e => {
   const dir = t.closest('[data-dir]'); if (dir) { pg.dir = dir.dataset.dir; pg.file = null; pg.line = null; return renderPage(); }
   const file = t.closest('[data-file]'); if (file) { pg.file = file.dataset.file; pg.line = null; return renderPage(); }
   const gr = t.closest('.gr'); if (gr) return loadCommit(gr.dataset.hash);
-  const dl = t.closest('[data-deplink]'); if (dl) { closePage(); ui.tab = 'search'; saveUi(); render(); return searchFor(dl.dataset.deplink, ['packages']); }
+  const dl = t.closest('[data-deplink]'); if (dl) { ui.back = {path: pg.path, tab: pg.tab, under: ui.tab}; closePage(); ui.tab = 'search'; saveUi(); render(); showBack(); return searchFor(dl.dataset.deplink, ['packages']); }
 });
 $('#page').addEventListener('change', e => { if (e.target.hasAttribute('data-ref')) { pg.ref = e.target.value; renderPage(); } });
 
@@ -657,10 +674,11 @@ async function act(fn) { try { await fn(); } catch (e) { toast(e.message); } ren
 
 document.addEventListener('click', e => {
   const t = e.target, row = t.closest('.row'), path = row && row.dataset.path;
-  if (t.closest('[data-tab]')) { ui.tab = t.closest('[data-tab]').dataset.tab; saveUi(); return render(); }
+  if (t.closest('[data-tab]')) { ui.tab = t.closest('[data-tab]').dataset.tab; ui.back = null; showBack(); saveUi(); return render(); }
   const pp = t.closest('[data-pp]');
   if (pp && !t.closest('#page [data-ptab]')) { const d = pp.dataset; return openPage(d.pp, d.pt || 'overview', {file: d.pf, line: +d.pl || null, commit: d.pc, focus: d.pfocus}); }
   if (t.dataset.sq !== undefined) return searchFor(t.dataset.sq, null, t.dataset.regex === '1');
+  if (t.hasAttribute('data-back')) { const b = ui.back; ui.back = null; showBack(); ui.tab = b.under || 'repos'; saveUi(); render(); return openPage(b.path, b.tab); }
   if (t.hasAttribute('data-more')) { ui.more = !ui.more; saveUi(); return render(); }
   if (t.dataset.open && !row) return act(async () => { const o = await api('/api/open', {path: pg.path, target: t.dataset.open}); toast('Opened in ' + o.with); });
   if (t.dataset.chip) { ui.chip = t.dataset.chip; saveUi(); return render(); }
@@ -701,8 +719,10 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { $('#q').value = ''; $('#q').blur(); render(); }
 });
 $('#q').addEventListener('input', render);
-$('#sq').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 350); });
-$('#sq').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(searchTimer); runSearch(); } });
+function clearSearch() { clearTimeout(searchTimer); $('#sq').value = ''; $('#sclear').classList.add('hide'); searchSeq++; $('#sres').innerHTML = searchHome(); $('#sq').focus(); }
+$('#sclear').addEventListener('click', clearSearch);
+$('#sq').addEventListener('input', () => { $('#sclear').classList.toggle('hide', !$('#sq').value); clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 350); });
+$('#sq').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(searchTimer); runSearch(); } if (e.key === 'Escape' && $('#sq').value) { e.stopPropagation(); clearSearch(); } });
 document.querySelectorAll('[data-scope], #sre').forEach(x => x.addEventListener('change', runSearch));
 $('#sort').addEventListener('change', () => { saveUi(); render(); });
 $('#re').addEventListener('click', rescan);

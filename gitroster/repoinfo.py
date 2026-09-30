@@ -49,7 +49,16 @@ def web_url(path):
     urls = [remotes[i + 1] for i in range(0, len(remotes) - 1) if remotes[i + 1].count("/") or ":" in remotes[i + 1]]
     origin = _git(path, "remote", "get-url", "origin").strip() or (urls[0] if urls else "")
     n = norm_remote(origin)
-    return "https://" + n if n.split("/")[0] in WEB_HOSTS and n.count("/") >= 2 else None
+    if n.split("/")[0] not in WEB_HOSTS or n.count("/") < 2:
+        return None
+    return _keep_case(origin, n)
+
+
+def _keep_case(origin, normalized):
+    """https URL with the owner/repo spelling from the remote (normalized form is lowercase)."""
+    tail = "/".join(normalized.split("/")[1:])
+    i = origin.lower().find(tail)
+    return "https://" + normalized.split("/")[0] + "/" + (origin[i:i + len(tail)] if i >= 0 else tail)
 
 
 def contributor_url(name, email, web):

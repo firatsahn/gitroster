@@ -236,6 +236,8 @@ class DepsAndRepoInfoTest(unittest.TestCase):
         p = make_repo(self.root, "w")
         git(p, "remote", "add", "origin", "git@github.com:me/thing.git")
         self.assertEqual(repoinfo.web_url(p), web)
+        git(p, "remote", "set-url", "origin", "https://github.com/Me/Thing.git")
+        self.assertEqual(repoinfo.web_url(p), "https://github.com/Me/Thing")
 
     def test_settings_and_editor_choice(self):
         from gitroster import opener
