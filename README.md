@@ -5,8 +5,7 @@
 <h1 align="center">gitroster</h1>
 
 <p align="center">
-  <b>A roster of every git repo on your machine: yours, forks and clones.<br>What each one is, what's running, and how to run it.</b><br>
-  Local-first. No dependencies. Nothing leaves your machine.
+  <b>A roster of every git repo on your machine: yours, forks and clones.<br>What each one is, what's running, and how to run it.</b>
 </p>
 
 ---
