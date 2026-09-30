@@ -151,21 +151,24 @@ class ScannerTest(unittest.TestCase):
         self.assertEqual(scanner.repo_kind(with_remote("d", "origin", email="someone@else"), ""), "clone")
 
     def test_owner_prefers_longest_path(self):
-        items = [{"path": "/a"}, {"path": "/a/b"}]
-        self.assertEqual(scanner.owner("/a/b/c", items)["path"], "/a/b")
-        self.assertEqual(scanner.owner("/a/bc", items)["path"], "/a")
-        self.assertIsNone(scanner.owner("/x", items))
+        j = lambda *a: os.sep.join(("", *a))
+        items = [{"path": j("a")}, {"path": j("a", "b")}]
+        self.assertEqual(scanner.owner(j("a", "b", "c"), items)["path"], j("a", "b"))
+        self.assertEqual(scanner.owner(j("a", "bc"), items)["path"], j("a"))
+        self.assertIsNone(scanner.owner(j("x"), items))
 
     def test_port_linked_by_cwd_then_command_line(self):
-        repos = [{"path": "/r/one"}, {"path": "/r/two"}]
-        envs = [{"path": "/r/two/.venv"}]
+        j = lambda *a: os.sep.join(("", *a))
+        one, two = j("r", "one"), j("r", "two")
+        repos = [{"path": one}, {"path": two}]
+        envs = [{"path": j("r", "two", ".venv")}]
         ports = [
-            {"cwd": "/r/one/src", "cmd": "node x", "repo": None},
-            {"cwd": "/", "cmd": "/r/two/.venv/bin/python app.py", "repo": None},
-            {"cwd": "/", "cmd": "nginx", "repo": None},
+            {"cwd": j("r", "one", "src"), "cmd": "node x", "repo": None},
+            {"cwd": os.sep, "cmd": j("r", "two", ".venv", "bin", "python") + " app.py", "repo": None},
+            {"cwd": os.sep, "cmd": "nginx", "repo": None},
         ]
         procs.link(ports, [], repos, envs)
-        self.assertEqual([p["repo"] for p in ports], ["/r/one", "/r/two", None])
+        self.assertEqual([p["repo"] for p in ports], [one, two, None])
 
 
 class PlatformParsersTest(unittest.TestCase):
@@ -250,7 +253,7 @@ class ServerTest(unittest.TestCase):
     def test_start_only_runs_detected_commands(self):
         code, _ = self.call("/api/start", {"path": str(self.repo), "cmd": "rm -rf /"})
         self.assertEqual(code, 400)
-        code, r = self.call("/api/start", {"path": str(self.repo), "cmd": "python3 main.py"})
+        code, r = self.call("/api/start", {"path": str(self.repo), "cmd": f"{scanner.PY} main.py"})
         self.assertEqual(code, 200)
         for _ in range(50):
             _, out = self.call("/api/log?path=" + urllib.request.quote(str(self.repo)))

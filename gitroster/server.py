@@ -61,7 +61,7 @@ class App:
             f.write(f"\n$ {cmd}   [{time.ctime()}]\n".encode())
             if sys.platform == "win32":  # cmd comes from the detected list, never from the request
                 proc = subprocess.Popen(cmd, cwd=path, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                        shell=True, creationflags=0x00000208)  # new process group, detached
+                                        shell=True, creationflags=0x08000200)  # new process group, no console window (DETACHED_PROCESS loses the log)
             else:
                 proc = subprocess.Popen(shlex.split(cmd), cwd=path, stdout=f, stderr=subprocess.STDOUT,
                                         stdin=subprocess.DEVNULL, start_new_session=True)
