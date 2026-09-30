@@ -1,4 +1,4 @@
-"""Read-only views of a repo: overview, file tree, file contents, commits, search, activity. Nothing here writes."""
+"""Read-only views of a repo: overview, file tree, file contents, commits, search. Nothing here writes."""
 import os
 import re
 import subprocess
