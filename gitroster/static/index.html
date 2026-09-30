@@ -79,6 +79,8 @@ html{overflow-y:scroll}
 #ptabs a.on{color:var(--fg);border-color:var(--fg)}
 .x{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
 a.ibw{display:inline-flex}
+#popen{display:inline-flex;gap:6px}
+.line .ib{width:28px;height:28px}
 .ib{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--fg)}
 .ib:disabled svg{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -187,7 +189,7 @@ a.br{cursor:pointer;text-decoration:underline dotted}
   <header class="ph">
     <div><b id="ptitle"></b> <span id="ptags"></span> <a id="plink" class="hide" target="_blank" rel="noopener"></a><div class="path" id="ppath"></div></div>
     <span class="sp"></span>
-    <button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button>
+    <span id="popen"></span>
     <button id="pclose" class="x" aria-label="Close" title="Close (Esc)"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </header>
   <nav id="ptabs"></nav><div id="pbody"></div></div></div>
@@ -334,7 +336,7 @@ function detail(r) {
   if (w.stashes.length) h += `<div class="line"><span class="k">stash</span><span>${w.stashes.map(x => `${cmd('git stash show -p ' + x.ref)} <span class="meta">${esc(x.message)} · ${ago(x.time)}</span>`).join('<br>')}</span></div>`;
   if (w.branches.length) h += `<div class="line"><span class="k">branches</span><span>${w.branches.slice(0, 8).map(b => `<a class="br" data-pp="${esc(r.path)}" data-pt="history" data-pfocus="${esc(b.name)}">${esc(b.name)}</a> ${stateTag(b)} <span class="meta">${ago(b.time)}</span>`).join('<br>')}${w.branches.length > 8 ? `<br><span class="meta">+${w.branches.length - 8} more, open the history</span>` : ''}${w.merged_branches ? `<br><span class="meta">${w.merged_branches} more already merged into ${esc(w.default)}</span>` : ''}</span></div>`;
   if (w.worktrees.length) h += `<div class="line"><span class="k">worktrees</span><span>${w.worktrees.map(t => `${cmd(home(t.path))} <span class="meta">${esc(t.branch || 'detached')}</span>${t.missing ? ' <span class="tag warn">folder missing · git worktree prune</span>' : ''}`).join('<br>')}</span></div>`;
-  h += `<div class="line"><span class="k">open</span><button class="go primary" data-pp="${esc(r.path)}" data-pt="overview">Details</button><button class="go" data-pp="${esc(r.path)}" data-pt="history">History</button><button class="go" data-open="editor">Editor</button><button class="go" data-open="terminal">Terminal</button><button class="go" data-open="folder">Folder</button></div>`;
+  h += `<div class="line"><span class="k">open</span><button class="go primary" data-pp="${esc(r.path)}" data-pt="overview">Details</button><button class="go" data-pp="${esc(r.path)}" data-pt="history">History</button>${openBtns()}</div>`;
   for (const i of r.health || []) h += `<div class="line"><span class="k">health</span><span class="tag warn">${esc(i.text)}</span>${i.files.map(f => `<span class="mono">${esc(f)}</span>`).join(' ')}</div>`;
   if (zombie(r)) h += `<div class="line"><span class="k">zombie</span><span class="meta">holds ${r.ports.map(p => ':' + p).join(' ')} but has no commit for ${Math.floor(days(r.last_commit))} days. Stop it from the Ports tab if you forgot about it.</span></div>`;
   if ((r.subprojects || []).length) h += `<div class="line"><span class="k">inside</span><span>${r.subprojects.map(sp => `<b>${esc(sp.name)}</b> <span class="meta">${esc(sp.stack.join(' '))}</span> ${sp.run.map(c => cmd('cd ' + sp.name + ' && ' + c)).join(' ')}`).join('<br>')}</span></div>`;
@@ -500,6 +502,13 @@ function openPage(path, tab = 'overview', o = {}) {
 }
 const closePage = () => $('#page').classList.remove('on');
 const ovOf = path => pg.cache.ovp ||= jget('/api/overview', {path});
+const ico = d => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const OPEN_ICONS = {
+  editor: ['Open in editor', ico('<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>')],
+  terminal: ['Open in terminal', ico('<path d="M4 17l6-6-6-6M12 19h8"/>')],
+  folder: ['Open folder', ico('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>')],
+};
+const openBtns = () => Object.entries(OPEN_ICONS).map(([k, [t, i]]) => `<button class="ib" data-open="${k}" title="${t}" aria-label="${t}">${i}</button>`).join('');
 const ICON_GH = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
 const ICON_LINK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.5h4.5V7M13.5 2.5L7 9M11.5 9.5v3a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1h3"/></svg>';
 const HOSTS = {'github.com': 'GitHub', 'gitlab.com': 'GitLab', 'bitbucket.org': 'Bitbucket'};
@@ -731,6 +740,7 @@ document.querySelectorAll('[data-scope], #sre').forEach(x => x.addEventListener(
 $('#sort').addEventListener('change', () => { saveUi(); render(); });
 $('#re').addEventListener('click', rescan);
 try { const s = JSON.parse(localStorage.getItem('gr-ui') || '{}').sort; if (s) $('#sort').value = s; } catch {}
+$('#popen').innerHTML = openBtns();
 load();
 setInterval(pollPorts, 5000);
 </script>
