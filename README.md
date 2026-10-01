@@ -50,6 +50,19 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - Flags for **uncommitted changes**, **unpushed commits**, **no remote** and **dormant** (no commit in 90+ days and nothing running)
 - Notes, pin and ignore, kept in `~/.config/gitroster/` (`~/Library/Application Support/gitroster` on macOS, `%APPDATA%\gitroster` on Windows)
 
+**Look inside any repo**
+- A detail page per repo: overview (languages, contributors linked to GitHub, tags, most changed files, README), file browser with a viewer, commit history with a graph and per-commit diffs, branches, dependencies
+- **Search** code, file names and commit messages across every repo at once (plain text or regex)
+- Search also finds **packages**: which repo uses a package and at which version, flagged when versions differ between repos
+- **Related repos**: copies of the same remote, and local repos that depend on each other
+- Everything is read-only
+
+**Work you might forget**
+- Stashes, branches that exist only on this machine or are not merged yet, and extra worktrees, with filters for each
+- A commit graph of every branch (click a branch to jump to it)
+- Light, dark or system theme in Settings
+- One-click open in your editor, terminal or file manager. Settings lists the editors (VS Code, Cursor, PyCharm, IntelliJ, Zed, Sublime and more) and terminals installed on your machine so you can pick one, or set a custom command
+
 **How to run it**
 - Setup and run commands detected from `package.json` (npm, pnpm, yarn), `pyproject.toml`, `requirements.txt`, `manage.py`, `main.py`/`app.py`, `Cargo.toml`, `go.mod`, `pubspec.yaml`, `Makefile`, Docker Compose and Wrangler
 - Commands use the repo's own virtual environment when one exists
@@ -61,11 +74,6 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - Ports open on all interfaces are flagged
 - One click to open it in the browser, one to stop it
 - Docker containers, matched to their compose folder
-
-**Cleanup**
-- Environments, `node_modules`, build folders and large files, sorted by size and marked "in use" when the repo is running
-- Dormant repos with their size
-- Copy-paste `rm` commands. The only thing gitroster deletes itself is what you **Park** (dependency and build folders, after a confirmation, never git-tracked files and never while the repo is running)
 
 **AI runbook (optional)**
 - Press "Explain how to run" and your local agent writes a short runbook from the README, file tree and detected commands. It is labelled *AI-generated, unverified* and nothing is executed.

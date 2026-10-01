@@ -8,12 +8,14 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 
-from . import agent, export, procs, scanner
+from . import agent, export, opener, procs, repoinfo, scanner
 from .store import Store
 
 STATIC = Path(__file__).parent / "static"
+READ = {"graph", "overview", "tree", "file", "commit", "search"}
 TYPES = {".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
 
 
@@ -24,6 +26,10 @@ class App:
         self.scan = self.store.cached_scan()
         self.scanning = False
         self.lock = threading.Lock()
+        threading.Thread(target=opener.detect, daemon=True).start()  # warm the editor/terminal cache
+
+    def settings(self):
+        return {"settings": self.store.settings(), **opener.detect()}
 
     def repo(self, path):
         return next((r for r in self.scan.get("repos", []) if r["path"] == path), None)
@@ -68,19 +74,6 @@ class App:
         threading.Thread(target=proc.wait, daemon=True).start()  # reap it when it exits
         return {"pid": proc.pid, "log": str(log)}
 
-    def park(self, path):
-        repo = self.repo(path)
-        if not repo:
-            raise ValueError("unknown repo")
-        ports, _ = self.live_ports()
-        if any(p["repo"] == path for p in ports):
-            raise ValueError("repo has a process listening on a port; stop it first")
-        before = sum(i["size"] or 0 for i in scanner.parkable(repo))
-        removed, text = scanner.park(repo)
-        note = self.store.meta().get(path, {}).get("note", "")
-        meta = self.store.update_meta(path, note=(note + "\n\n" + text).strip()[:4000])
-        return {"removed": removed, "freed": before, "meta": meta}
-
     def tail(self, path, n=4000):
         log = self.store.log_path(Path(path).name)
         try:
@@ -114,6 +107,30 @@ def make_handler(app):
         def err(self, code, msg):
             self.send(code, json.dumps({"error": msg}))
 
+        def read_api(self, name):
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            repos = [r for r in app.scan.get("repos", []) if not app.store.meta().get(r["path"], {}).get("ignored")]
+            try:
+                if name == "search":
+                    scope = tuple(x for x in q.get("scope", "code,files,commits").split(",") if x in ("code", "files", "commits"))
+                    return self.ok({"results": repoinfo.search(repos, q.get("q", ""), scope, q.get("regex") == "1")})
+                p = q.get("path", "")
+                if not app.repo(p):
+                    return self.err(404, "unknown repo")
+                if name == "graph":
+                    return self.ok({"commits": scanner.graph(p, min(int(q.get("n", 300)), 1000))})
+                if name == "overview":
+                    return self.ok(repoinfo.overview(p))
+                if name == "tree":
+                    return self.ok({"entries": repoinfo.tree(p, q.get("ref"), q.get("dir"))})
+                if name == "file":
+                    return self.ok(repoinfo.read_file(p, q.get("ref"), q.get("file")))
+                if name == "commit":
+                    return self.ok(repoinfo.commit(p, q.get("hash")))
+            except ValueError as e:
+                return self.err(400, str(e))
+            self.err(404, "not found")
+
         def do_GET(self):
             if self.headers.get("Host") not in hosts:  # DNS rebinding guard
                 return self.err(403, "bad host")
@@ -126,6 +143,10 @@ def make_handler(app):
                 return self.ok(app.state())
             if path == "/api/scan":
                 return self.ok(app.do_scan())
+            if path.startswith("/api/") and path.split("/")[2] in READ:
+                return self.read_api(path.split("/")[2])
+            if path == "/api/settings":
+                return self.ok(app.settings())
             if path == "/api/export.md":
                 return self.send(200, export.markdown(app.scan, app.store.meta()), "text/markdown; charset=utf-8")
             if path == "/api/ports":
@@ -154,8 +175,16 @@ def make_handler(app):
                         return self.err(404, "not a listening process")
                     os.kill(pid, signal.SIGTERM)
                     return self.ok({"ok": True})
-                if path == "/api/park":
-                    return self.ok(app.park(body["path"]))
+                if path == "/api/settings":
+                    fields = {k: str(body[k])[:300] for k in ("editor", "editor_custom", "terminal", "theme") if k in body}
+                    if fields.get("theme") not in (None, "system", "light", "dark"):
+                        return self.err(400, "theme must be system, light or dark")
+                    app.store.update_settings(**fields)
+                    return self.ok(app.settings())
+                if path == "/api/open":
+                    if not app.repo(body["path"]):
+                        return self.err(404, "unknown repo")
+                    return self.ok({"with": opener.open_repo(body["path"], body["target"], app.store.settings())})
                 if path == "/api/start":
                     return self.ok(app.start(body["path"], body["cmd"]))
                 if path == "/api/meta":
@@ -183,6 +212,7 @@ def make_handler(app):
 
 
 def serve(app):
+    opener.warm()
     srv = ThreadingHTTPServer(("127.0.0.1", app.port), make_handler(app))
     try:
         srv.serve_forever()

@@ -12,7 +12,7 @@ python3 -m gitroster ~/projects     # run from source
 
 - **No runtime dependencies.** If you think you need one, open an issue first.
 - **Detection must be deterministic.** File checks, `git`, `ss` and `/proc` decide what is shown. AI output is optional and always labelled unverified.
-- **Never delete or modify user files.** The cleanup view only copies commands.
+- **Never delete or modify user files.** gitroster only reads; the one exception is starting and stopping processes you confirm.
 - **Anything that runs or kills a process** must be confirmed in the UI and validated on the server against data the server produced.
 - Add a test for every detector or endpoint you add. Tests build throwaway git repos in a temp folder, see `tests/test_gitroster.py`.
 

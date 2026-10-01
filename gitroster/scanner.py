@@ -1,4 +1,4 @@
-"""Filesystem scan: git repos, virtual envs, reclaimable folders, big files."""
+"""Filesystem scan: git repos, virtual envs, git state, ports."""
 import json
 import os
 import re
@@ -9,6 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from . import deps as depmod
 from . import procs
 
 PRUNE = {
@@ -18,8 +19,6 @@ PRUNE = {
 }
 MAX_DEPTH = 6
 GENERIC_NAMES = {"project", "src", "app", "code", "repo", "main", "web", "backend", "frontend"}
-RECLAIMABLE = ["node_modules", ".next", ".nuxt", ".turbo", ".parcel-cache", "dist", "build"]
-BIG_FILE = 50 * 1024 * 1024
 VENV_NAMES = (".venv", "venv", "env")
 WIN = sys.platform == "win32"
 BIN = "Scripts" if WIN else "bin"
@@ -120,6 +119,11 @@ def git_info(path):
     info["remote"] = run(["git", "-C", str(path), "remote", "get-url", "origin"], 5).strip()
     last = run(["git", "-C", str(path), "log", "-1", "--format=%ct"], 5).strip()
     info["last_commit"] = int(last) if last.isdigit() else None
+    info["remotes"] = {}
+    for line in run(["git", "-C", str(path), "remote", "-v"], 5).splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            info["remotes"].setdefault(parts[0], parts[1])
     info["kind"] = repo_kind(path, info["remote"])
     return info
 
@@ -202,31 +206,6 @@ def detect(path):
     return stack, setup, list(dict.fromkeys(runs))
 
 
-def find_reclaimables(path):
-    p = Path(path)
-    return [{"path": str(p / n), "kind": n} for n in RECLAIMABLE if (p / n).is_dir()]
-
-
-def big_files(path, limit=5):
-    found, total = [], 0
-    for dirpath, dirs, files in os.walk(path):
-        if "pyvenv.cfg" in files or "conda-meta" in dirs:
-            dirs[:] = []
-            continue
-        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__")]
-        for f in files:
-            fp = os.path.join(dirpath, f)
-            try:
-                st = os.lstat(fp)
-            except OSError:
-                continue
-            if st.st_size >= BIG_FILE and not os.path.islink(fp):
-                total += st.st_size
-                found.append((st.st_size, os.path.relpath(fp, path)))
-    found.sort(reverse=True)
-    return total, [{"path": f, "size": s} for s, f in found[:limit]]
-
-
 SECRET_FILES = re.compile(r"(^|/)(\.env(\.(?!example|sample|template)[\w.-]+)?|id_rsa|id_ed25519|[^/]+\.(pem|key|p12|pfx))$")
 
 
@@ -247,6 +226,72 @@ def health(path):
     if tracked and not (p / ".gitignore").exists() and any(x in detect(p)[0] for x in ("node", "python")):
         issues.append({"kind": "no-gitignore", "text": "no .gitignore", "files": []})
     return issues
+
+
+def default_branch(path):
+    ref = run(["git", "-C", str(path), "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], 5).strip()
+    if "/" in ref:
+        return ref.split("/", 1)[1]
+    for b in ("main", "master"):
+        if run(["git", "-C", str(path), "rev-parse", "--verify", "-q", f"refs/heads/{b}"], 5).strip():
+            return b
+    return ""
+
+
+def forgotten_work(path):
+    """Work that is easy to lose track of: stashes, branches not merged anywhere safe, extra worktrees."""
+    p = str(path)
+    stashes = []
+    for line in run(["git", "-C", p, "stash", "list", "--format=%gd\t%ct\t%gs"], 8).splitlines():
+        ref, _, rest = line.partition("\t")
+        ts, _, msg = rest.partition("\t")
+        stashes.append({"ref": ref, "time": int(ts) if ts.isdigit() else None, "message": msg})
+    base = default_branch(path)
+    heads = run(["git", "-C", p, "for-each-ref", "refs/heads", "--format=%(refname:short)"], 8).split()
+    bases = [b for b in dict.fromkeys([base, "develop", "dev"]) if b and b in heads]  # git-flow repos merge into develop
+    unmerged = set(heads) - set(bases)
+    for b in bases:
+        unmerged &= set(run(["git", "-C", p, "for-each-ref", f"--no-merged={b}", "refs/heads", "--format=%(refname:short)"], 8).split())
+    branches, merged = [], 0
+    fmt = "%(refname:short)\t%(upstream:short)\t%(upstream:track)\t%(committerdate:unix)\t%(HEAD)"
+    for line in run(["git", "-C", p, "for-each-ref", "refs/heads", f"--format={fmt}"], 8).splitlines():
+        name, upstream, track, ts, head = (line.split("\t") + [""] * 5)[:5]
+        if name in bases:
+            continue
+        if bases and name not in unmerged:
+            merged += 1
+            continue
+        ahead = re.search(r"ahead (\d+)", track)
+        gone = "gone" in track
+        state = "local-only" if not upstream or gone or ahead else "unmerged"
+        branches.append({"name": name, "state": state, "upstream": upstream, "gone": gone,
+                         "ahead": int(ahead.group(1)) if ahead else 0,
+                         "time": int(ts) if ts.isdigit() else None, "current": head.strip() == "*"})
+    worktrees, block = [], {}
+    for line in run(["git", "-C", p, "worktree", "list", "--porcelain"], 8).splitlines() + [""]:
+        if line:
+            k, _, v = line.partition(" ")
+            block[k] = v
+        elif block:
+            worktrees.append(block)
+            block = {}
+    extra = [{"path": w.get("worktree", ""), "branch": w.get("branch", "").replace("refs/heads/", ""),
+              "missing": "prunable" in w or not os.path.isdir(w.get("worktree", ""))} for w in worktrees[1:]]
+    branches.sort(key=lambda b: (b["state"] != "local-only", -(b["time"] or 0)))
+    return {"default": base, "stashes": stashes, "branches": branches, "merged_branches": merged, "worktrees": extra}
+
+
+def graph(path, limit=300):
+    """Recent commits of all branches, tags and remotes, newest first, for drawing a commit graph."""
+    fmt = "%H%x1f%P%x1f%an%x1f%ct%x1f%D%x1f%s"
+    out = run(["git", "-C", str(path), "log", "--topo-order", f"-n{int(limit)}", "--branches", "--tags", "--remotes",
+               f"--format={fmt}"], 20)
+    commits = []
+    for line in out.splitlines():
+        h, parents, author, ts, refs, subject = (line.split("\x1f") + [""] * 6)[:6]
+        commits.append({"hash": h, "parents": parents.split(), "author": author, "time": int(ts) if ts.isdigit() else None,
+                        "refs": [r.strip() for r in refs.split(",") if r.strip()], "subject": subject[:200]})
+    return commits
 
 
 def subprojects(path, limit=8):
@@ -282,16 +327,15 @@ def analyze_repo(p, tool):
     r = {
         "name": display_name(p), "path": str(p), "tool": tool,
         "stack": stack, "setup": setup, "run": runs, "envs": [], "ports": [],
-        "reclaimable": find_reclaimables(p),
     }
     r.update(git_info(p))
     r.update(readme(p))
+    d = depmod.collect(p)
+    r["pkg"], r["deps"] = d["names"], d["deps"]
+    r["work"] = forgotten_work(p)
     r["health"] = health(p)
     r["subprojects"] = subprojects(p)
     r["size"] = dir_size(p)
-    r["big_total"], r["big_files"] = big_files(p)
-    for item in r["reclaimable"]:
-        item["size"] = dir_size(item["path"], 15)
     return r
 
 
@@ -304,20 +348,6 @@ def owner(path, items):
             if best is None or len(cp) > len(best["path"]):
                 best = c
     return best
-
-
-def install_cmds(path):
-    """Commands that rebuild what `park` removes (deps, venv)."""
-    p, cmds = Path(path), []
-    if (p / "package.json").exists():
-        pm = "pnpm" if (p / "pnpm-lock.yaml").exists() else "yarn" if (p / "yarn.lock").exists() else "npm"
-        cmds.append(f"{pm} install")
-    pip = f".venv{SEP}{BIN}{SEP}pip"
-    if (p / "requirements.txt").exists():
-        cmds += [f"{PY} -m venv .venv", f"{pip} install -r requirements.txt"]
-    elif (p / "pyproject.toml").exists():
-        cmds += [f"{PY} -m venv .venv", f"{pip} install -e ."]
-    return cmds
 
 
 def finalize(repo):
@@ -339,33 +369,49 @@ def finalize(repo):
         elif (p / "pyproject.toml").exists():
             repo["setup"].append(f"{pip} install -e .")
     repo["run"] = [c.replace("{py}", py) for c in repo["run"]]
-    repo["restore"] = install_cmds(repo["path"])
 
 
-def parkable(repo):
-    """Folders `park` may remove: envs and build folders inside the repo, never tracked by git."""
-    root, out = repo["path"], []
-    for item in [*repo["reclaimable"], *repo["envs"]]:
-        path = item["path"]
-        if not path.startswith(root + os.sep) or os.path.islink(path) or not os.path.isdir(path):
-            continue
-        if run(["git", "-C", root, "ls-files", "--", path], 10).strip():
-            continue
-        out.append({"path": path, "kind": item.get("kind", ""), "size": item.get("size")})
-    return out
+def norm_remote(url):
+    """git@github.com:a/b.git, ssh://git@github.com:22/a/b and https://github.com/a/b.git -> github.com/a/b"""
+    u = (url or "").strip().lower()
+    m = re.match(r"^(?:[a-z+]+://)?(?:[^@/]+@)?([^/:]+)(?::\d+)?[:/](.+)$", u)
+    if not m:
+        return u
+    path = re.sub(r"\.git$", "", m.group(2).strip("/"))
+    return f"{m.group(1)}/{path}"
 
 
-def park(repo, today=None):
-    """Delete the parkable folders. Returns (removed paths, restore text for the note)."""
-    removed = []
-    for item in parkable(repo):
-        shutil.rmtree(item["path"])
-        removed.append(item["path"])
-    names = ", ".join(os.path.relpath(x, repo["path"]) for x in removed)
-    text = f"Parked {today or time.strftime('%Y-%m-%d')} (removed {names or 'nothing'})."
-    if repo.get("restore"):
-        text += " To restore: " + " && ".join(repo["restore"])
-    return removed, text
+def main_remote(r):
+    remotes = r.get("remotes", {})
+    return remotes.get("origin") or next(iter(remotes.values()), "")
+
+
+GENERIC_PKGS = {"app", "main", "test", "tests", "src", "lib", "utils", "common", "core", "api", "web", "server", "client"}
+
+
+def relate(repos):
+    """Fill same_remote (copies of one repo), uses / used_by (local packages that depend on each other)."""
+    by_remote, by_pkg = {}, {}
+    for r in repos:
+        key = norm_remote(main_remote(r))
+        r["same_remote"] = []
+        r["uses"], r["used_by"] = [], []
+        if key:
+            by_remote.setdefault(key, []).append(r["path"])
+        for n in r.get("pkg", []):
+            if len(n["name"]) >= 3 and n["name"].lower() not in GENERIC_PKGS:
+                by_pkg.setdefault((n["eco"], n["name"].lower()), set()).add(r["path"])
+    for r in repos:
+        key = norm_remote(main_remote(r))
+        r["same_remote"] = [x for x in by_remote.get(key, []) if x != r["path"]] if key else []
+        for d in r.get("deps", []):
+            for other in by_pkg.get((d["eco"], d["name"].lower()), ()):
+                if other != r["path"] and other not in r["uses"]:
+                    r["uses"].append(other)
+    index = {r["path"]: r for r in repos}
+    for r in repos:
+        for other in r["uses"]:
+            index[other]["used_by"].append(r["path"])
 
 
 def scan(roots, progress=None):
@@ -384,6 +430,7 @@ def scan(roots, progress=None):
             o["envs"].append(e)
     for r in repos:
         finalize(r)
+    relate(repos)
     ports = procs.listening()
     containers = procs.docker_containers()
     procs.link(ports, containers, repos, envs)
