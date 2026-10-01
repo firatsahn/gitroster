@@ -119,6 +119,7 @@ def git_info(path):
     info["remote"] = run(["git", "-C", str(path), "remote", "get-url", "origin"], 5).strip()
     last = run(["git", "-C", str(path), "log", "-1", "--format=%ct"], 5).strip()
     info["last_commit"] = int(last) if last.isdigit() else None
+    info["head"] = run(["git", "-C", str(path), "rev-parse", "HEAD"], 5).strip()
     info["remotes"] = {}
     for line in run(["git", "-C", str(path), "remote", "-v"], 5).splitlines():
         parts = line.split()

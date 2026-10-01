@@ -175,6 +175,7 @@ def search_repo(repo, q, scope, regex=False, per=40):
     res = {"path": path, "name": repo["name"], "code": [], "files": [], "commits": [], "capped": False}
     if "code" in scope:
         cmd = ["git", "-C", path, "grep", "-n", "-I", "-i", "--no-color", "-E" if regex else "-F", "-e", q]
+        proc = None
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace")
             for line in proc.stdout:
@@ -189,6 +190,9 @@ def search_repo(repo, q, scope, regex=False, per=40):
             proc.wait(timeout=5)
         except (OSError, subprocess.TimeoutExpired):
             pass
+        finally:
+            if proc is not None and proc.stdout:
+                proc.stdout.close()
     if "files" in scope:
         low = q.lower()
         res["files"] = [f for f in _git(path, "ls-files").splitlines() if low in f.lower()][:15]
