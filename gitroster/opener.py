@@ -11,6 +11,8 @@ import threading
 import sys
 import time
 
+from .pathscan import which
+
 WIN = sys.platform == "win32"
 MAC = sys.platform == "darwin"
 WSL = bool(os.environ.get("WSL_DISTRO_NAME"))
@@ -57,35 +59,7 @@ def _mac_app(name):
     return bool(name) and any(os.path.isdir(f"{d}/{name}.app") or glob.glob(f"{d}/{name}*.app") for d in ("/Applications", f"{HOME}/Applications"))
 
 
-_index = {"at": 0.0, "map": {}}
-
-
-def _path_index():
-    """name -> full path for everything on PATH, built with one listdir per folder.
-
-    shutil.which stats every command in every PATH folder, which takes seconds on WSL
-    where the Windows folders are on a slow mount.
-    """
-    if not _index["map"] or time.time() - _index["at"] > 60:
-        found = {}
-        for d in os.environ.get("PATH", "").split(os.pathsep):
-            try:
-                names = os.listdir(d)
-            except OSError:
-                continue
-            for n in names:
-                full = os.path.join(d, n)
-                found.setdefault(n, full)
-                stem, ext = os.path.splitext(n)
-                if WIN and ext.lower() in (".exe", ".cmd", ".bat", ".com"):
-                    found.setdefault(stem.lower(), full)
-        _index.update(at=time.time(), map=found)
-    return _index["map"]
-
-
-def _which(cmd):
-    path = _path_index().get(cmd) or (_path_index().get(cmd.lower()) if WIN else None)
-    return path if path and os.path.isfile(path) and os.access(path, os.X_OK) else None
+_which = which
 
 
 def _find_cmd(cmds):
@@ -144,7 +118,9 @@ def detect(max_age=600):
     """Editors and terminals found on this machine. Scanning PATH is slow on WSL, so the last result is
     served at once and refreshed in the background when it is stale."""
     if _detected["value"] is None:
-        _refresh()
+        with _lock:  # waits for a background scan that is already running instead of returning nothing
+            if _detected["value"] is None:
+                _detected.update(value=_detect(), at=time.time())
     elif time.time() - _detected["at"] > max_age:
         warm()
     return _detected["value"]

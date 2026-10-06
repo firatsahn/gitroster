@@ -82,7 +82,24 @@ html{overflow-y:scroll}
 .x{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%}
 a.ibw{display:inline-flex}
 #popen{display:inline-flex;gap:6px}
-.line .ib{width:28px;height:28px}
+.line .ib,.ib.sm{width:28px;height:28px}
+.ib.xs{width:22px;height:22px;border-radius:6px}
+.ib.xs svg{width:13px;height:13px}
+.top .go,.top .ib{align-self:center}
+.ai-btn{color:var(--mute)}
+.ai-btn.on{color:var(--fg);border-color:var(--fg)}
+.ai-btn.stale{color:var(--warn);border-color:var(--warn)}
+.ai-btn.busy svg{animation:spin 1s linear infinite}
+.about ul{margin:6px 0 10px;padding-left:18px;color:var(--mute);font-size:13px}
+.about li{margin:3px 0}
+.about a{color:var(--fg)}
+.ai .line{margin:4px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:nowrap}
+.ai .v{flex:1;min-width:0}
+.aihead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.aihead svg{color:var(--fg)}
+.aifoot{margin-top:6px}
+.opt.dim{opacity:.55}
+.hint{margin:-2px 0 6px 24px}
 .ib{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--fg)}
 .ib:disabled svg{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -298,6 +315,28 @@ function renderRepos(q) {
   $('#repolist').innerHTML = list.length ? list.map(repoRow).join('') : '<div class="empty">Nothing here.</div>';
 }
 
+/* ---------- AI summary ---------- */
+const ICON_AI = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16v4M17 18h4"/></svg>';
+const aiOf = r => meta(r).summary;
+const aiBusy = r => ui.busy.has('ai' + r.path);
+const aiStale = r => { const s = aiOf(r); return !!(s && s.head && r.head && s.head !== r.head); };
+function summaryBlock(r) {
+  const s = aiOf(r), busy = aiBusy(r);
+  const btn = `<button class="go" data-ai="" ${busy ? 'disabled' : ''}>${busy ? 'Summarizing…' : s ? 'Refresh' : 'Summarize with AI'}</button>`;
+  if (!s) return `<div class="line"><span class="k">AI</span>${btn}<span class="meta">runs the agent CLI you chose in Settings · nothing is executed</span></div>`;
+  const rows = s.raw ? `<div>${esc(s.raw)}</div>` : [['what', 'What'], ['stack', 'Stack'], ['run', 'Run'], ['status', 'Status'], ['watch', 'Watch out']]
+    .filter(([k]) => s[k] && s[k].toLowerCase() !== 'none').map(([k, l]) => `<div class="line"><span class="k">${l}</span><span class="v">${esc(s[k])}</span></div>`).join('');
+  return `<div class="ai"><div class="aihead">${ICON_AI}<b>Written by AI</b><span class="meta">${esc(s.agent || 'agent')} · ${ago(s.at)}</span><span class="tag">unverified</span>${aiStale(r) ? '<span class="tag warn">repo changed since</span>' : ''}</div>${rows}<div class="meta aifoot">Based on this repo's README, file list, dependency names and recent commit titles. ${btn}</div></div>`;
+}
+async function runAi(path) {
+  if (ui.busy.has('ai' + path)) return;
+  const refresh = () => { render(); if ($('#page').classList.contains('on') && pg.path === path && pg.tab === 'overview') renderPage(); };
+  ui.busy.add('ai' + path); toast('Summarizing… this can take up to a minute'); refresh();
+  try { S.meta[path] = await api('/api/summarize', {path}); toast('Summary ready'); }
+  catch (e) { toast(e.message); if (/no agent CLI/.test(e.message)) openSettings(); }
+  finally { ui.busy.delete('ai' + path); refresh(); }
+}
+
 function repoRow(r) {
   const m = meta(r), open = ui.open.has(r.path), p = r.path;
   return `<div class="row ${open ? 'open' : ''}" data-path="${esc(p)}">
@@ -319,6 +358,7 @@ function repoRow(r) {
       <span class="sp"></span>
       <span class="meta">${size(r.size)} · ${ago(r.last_commit)}</span>
       <button class="go primary" data-pp="${esc(p)}" data-pt="overview">Details</button>
+      <button class="ib xs ai-btn ${aiBusy(r) ? 'busy' : aiOf(r) ? (aiStale(r) ? 'stale' : 'on') : ''}" data-ai="icon" title="${aiOf(r) ? 'AI summary' + (aiStale(r) ? ' (repo changed since)' : '') : 'Summarize with AI'}" aria-label="AI summary">${ICON_AI}</button>
     </div>
     <div class="path">${esc(home(p))}${r.branch ? ` · ${esc(r.branch)}` : ''}</div>
     ${open ? detail(r) : ''}
@@ -330,7 +370,7 @@ function detail(r) {
   const cmd = c => `<code>${esc(c)}</code>`;
   const ports = S.ports.filter(x => x.repo === r.path);
   let h = '<div class="detail">';
-  if (r.summary) h += `<div class="line">${esc(r.summary)}</div>`;
+  if (r.summary) h += `<div class="line">${esc(r.summary)}</div><div class="meta" style="margin:-2px 0 6px">from ${esc(r.readme_file || 'README')} · not AI</div>`;
   h += `<div class="line"><span class="k">note</span></div><textarea data-note placeholder="What is this? How do you use it?">${esc(m.note || '')}</textarea>`;
   if (r.remote) h += `<div class="line"><span class="k">remote</span><span class="mono">${esc(r.remote)}</span></div>`;
   if (r.envs.length) h += `<div class="line"><span class="k">env</span><span>${r.envs.map(e => `${cmd(home(e.path))} <span class="meta">${e.kind}${e.python ? ' ' + esc(e.python) : ''} · ${size(e.size)}</span>`).join('<br>')}</span></div>`;
@@ -349,8 +389,7 @@ function detail(r) {
   for (const i of r.health || []) h += `<div class="line"><span class="k">health</span><span class="tag warn">${esc(i.text)}</span>${i.files.map(f => `<span class="mono">${esc(f)}</span>`).join(' ')}</div>`;
   if (zombie(r)) h += `<div class="line"><span class="k">zombie</span><span class="meta">holds ${r.ports.map(p => ':' + p).join(' ')} but has no commit for ${Math.floor(days(r.last_commit))} days. Stop it from the Ports tab if you forgot about it.</span></div>`;
   if ((r.subprojects || []).length) h += `<div class="line"><span class="k">inside</span><span>${r.subprojects.map(sp => `<b>${esc(sp.name)}</b> <span class="meta">${esc(sp.stack.join(' '))}</span> ${sp.run.map(c => cmd('cd ' + sp.name + ' && ' + c)).join(' ')}`).join('<br>')}</span></div>`;
-  h += `<div class="line"><span class="k">AI</span><button class="go" data-explain ${busy.has('ai' + r.path) ? 'disabled' : ''}>${busy.has('ai' + r.path) ? 'Asking…' : m.ai ? 'Ask again' : 'Explain how to run'}</button><span class="meta">uses your local agent · nothing is run</span></div>`;
-  if (m.ai) h += `<div class="ai">${esc(m.ai)}</div><div class="meta">AI-generated, unverified · ${ago(m.ai_at)}</div>`;
+  h += summaryBlock(r);
   if (ui.logs[r.path]) h += `<div class="log">${esc(ui.logs[r.path])}</div>`;
   h += `<div class="line"><span class="k"></span><button class="go" data-ignore>${m.ignored ? 'Unignore' : 'Ignore'}</button></div>`;
   return h + '</div>';
@@ -555,7 +594,8 @@ async function pOverview(r) {
         <div><b>${ov.commits_total}</b><span>commits</span></div><div><b>${ov.files_total}</b><span>files</span></div>
         <div><b>${ov.first_commit ? ago(ov.first_commit).replace(' ago', '') : '?'}</b><span>age</span></div>
         <div><b>${ago(r.last_commit).replace(' ago', '')}</b><span>last commit</span></div><div><b>${size(r.size)}</b><span>on disk</span></div></div>
-      ${r.summary ? `<p>${esc(r.summary)}</p>` : ''}
+      <div style="margin-bottom:14px">${summaryBlock(r)}</div>
+      ${r.summary ? `<p style="margin-bottom:2px">${esc(r.summary)}</p><div class="meta" style="margin-bottom:12px">first paragraph of ${esc(r.readme_file || 'README')} · not AI</div>` : ''}
       ${meta(r).note ? `<div class="ai" style="margin-bottom:10px"><b>Your note</b><br>${esc(meta(r).note)}</div>` : ''}
       ${rel.length ? `<h2>Related</h2><div class="detail" style="display:block;margin-top:0">${rel.join('')}</div>` : ''}
       ${r.run.length ? `<h2>Run</h2><div class="line">${r.run.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
@@ -667,7 +707,7 @@ $('#page').addEventListener('click', e => {
 $('#page').addEventListener('change', e => { if (e.target.hasAttribute('data-ref')) { pg.ref = e.target.value; renderPage(); } });
 
 /* ---------- settings ---------- */
-let cfg = {settings: {}, editors: [], terminals: []};
+let cfg = {settings: {}, editors: [], terminals: [], agents: []};
 function applyTheme(t) {
   const root = document.documentElement;
   if (t === 'dark' || t === 'light') root.dataset.theme = t; else delete root.dataset.theme;
@@ -687,15 +727,36 @@ function renderCfg() {
     <input id="ecustom" placeholder="for example: code -r" value="${esc(st.editor_custom || '')}" style="width:100%;margin-top:4px">
     <h2>Terminal</h2>
     ${cfg.terminals.length ? `<select id="eterm" style="width:100%">${cfg.terminals.map(t => `<option value="${esc(t.id)}" ${st.terminal === t.id ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>` : '<div class="meta">No terminal found.</div>'}
-    <div class="meta" style="margin-top:12px">Only editors and terminals installed on this machine are listed. Saved automatically.</div>`;
+    <h2>AI agent</h2>
+    ${cfg.agent_override ? '<div class="meta" style="margin-bottom:6px">Overridden by --agent-cmd or GITROSTER_AGENT.</div>' : ''}
+    ${cfg.agents.map(a => a.installed ? opt('agent', a.id, a.label, st.agent === a.id || (!st.agent && a.id === (cfg.agents.find(x => x.installed) || {}).id))
+        + `<div class="meta hint">install: <code>${esc(a.install)}</code></div>`
+      : `<label class="opt dim"><input type="radio" disabled>${esc(a.label)} <span class="tag">not installed</span></label><div class="meta hint">install: <code>${esc(a.install)}</code></div>`).join('')}
+    ${opt('agent', 'custom', 'Custom command', st.agent === 'custom')}
+    <input id="acustom" placeholder="reads the prompt on stdin, e.g. my-agent --no-tools" value="${esc(st.agent_custom || '')}" style="width:100%;margin-top:4px">
+    <div class="meta" style="margin-top:6px">Summaries run the CLI you pick with tools turned off. It receives the README, a file list, dependency names and recent commit titles, and nothing else. Where that text goes depends on the agent: Claude, Codex and Gemini are cloud services.</div>
+    <div class="meta" style="margin-top:12px">Editors and terminals: only those installed on this machine are listed. Agents that are not installed are greyed out. Saved automatically.</div>
+    <h2>About</h2>
+    <div class="about"><b>gitroster</b> <span class="meta">v${esc(cfg.version || '')} · MIT</span>
+      <ul>
+        <li>Finds git repos in the folders you started it with and reads them with git. It never changes your repos.</li>
+        <li>Ports and processes come from your operating system and are matched to repos by working directory.</li>
+        <li>Search, history, files and diffs run git on demand. Everything stays on this machine.</li>
+        <li>AI summaries are optional and only run the agent CLI you chose.</li>
+        <li>Notes, pins and these settings are saved in your user config folder.</li>
+      </ul>
+      <div class="meta">Made by <a href="https://github.com/firatsahn" target="_blank" rel="noopener">firatsahn</a> ·
+        <a href="https://github.com/firatsahn/gitroster/graphs/contributors" target="_blank" rel="noopener">all contributors</a> ·
+        <a href="https://github.com/firatsahn/gitroster" target="_blank" rel="noopener">source</a></div></div>`;
 }
 async function saveCfg(patch) { try { cfg.settings = (await api('/api/settings', patch)).settings; toast('Saved'); } catch (e) { toast(e.message); } }
-$('#cfg').addEventListener('click', async () => {
-  const had = cfg.editors.length || cfg.terminals.length;  // loaded in the background at startup, so this is normally instant
-  if (had) renderCfg(); else $('#sbody').innerHTML = '<div class="meta">Looking for editors and terminals…</div>';
+async function openSettings() {
+  const had = cfg.version;  // loaded in the background at startup, so this is normally instant
+  if (had) renderCfg(); else $('#sbody').innerHTML = '<div class="meta">Looking for editors, terminals and agents…</div>';
   $('#settings').classList.add('on');
   if (!had) { await loadCfg(); renderCfg(); }
-});
+}
+$('#cfg').addEventListener('click', openSettings);
 $('#sclose').addEventListener('click', () => $('#settings').classList.remove('on'));
 $('#settings').addEventListener('click', e => { if (e.target.id === 'settings') $('#settings').classList.remove('on'); });
 $('#settings').addEventListener('change', e => {
@@ -703,6 +764,8 @@ $('#settings').addEventListener('change', e => {
   if (e.target.name === 'editor') saveCfg({editor: e.target.value, editor_custom: $('#ecustom').value});
   if (e.target.id === 'eterm') saveCfg({terminal: e.target.value});
   if (e.target.id === 'ecustom') saveCfg({editor: 'custom', editor_custom: e.target.value});
+  if (e.target.name === 'agent') saveCfg({agent: e.target.value, agent_custom: $('#acustom').value});
+  if (e.target.id === 'acustom') saveCfg({agent: 'custom', agent_custom: e.target.value});
 });
 
 /* ---------- events ---------- */
@@ -716,6 +779,8 @@ document.addEventListener('click', e => {
   if (t.dataset.sq !== undefined) return searchFor(t.dataset.sq, null, t.dataset.regex === '1');
   if (t.hasAttribute('data-back')) { const b = ui.back; ui.back = null; showBack(); ui.tab = b.under || 'repos'; saveUi(); render(); return openPage(b.path, b.tab); }
   if (t.hasAttribute('data-more')) { ui.more = !ui.more; saveUi(); return render(); }
+  const ai = t.closest('[data-ai]');
+  if (ai) { const p = path || pg.path, rr = repoOf(p); return ai.dataset.ai === 'icon' && aiOf(rr) && !aiBusy(rr) ? openPage(p, 'overview') : runAi(p); }
   if (t.dataset.open && !row) return act(async () => { const o = await api('/api/open', {path: pg.path, target: t.dataset.open}); toast('Opened in ' + o.with); });
   if (t.dataset.chip) { ui.chip = t.dataset.chip; saveUi(); return render(); }
   if (t.dataset.kill) return act(async () => {
@@ -733,10 +798,6 @@ document.addEventListener('click', e => {
     ui.busy.add(path); render();
     try { await api('/api/start', {path, cmd: t.dataset.start}); toast('Started'); } finally { ui.busy.delete(path); }
     for (const ms of [1500, 4000]) setTimeout(async () => { ui.logs[path] = (await api('/api/log?path=' + encodeURIComponent(path))).log; pollPorts(); render(); }, ms);
-  });
-  if (t.hasAttribute('data-explain')) return act(async () => {
-    ui.busy.add('ai' + path); render();
-    try { S.meta[path] = await api('/api/explain', {path}); } finally { ui.busy.delete('ai' + path); }
   });
   if (t.closest('[data-toggle]') && !t.closest('button')) {
     ui.open.has(path) ? ui.open.delete(path) : ui.open.add(path); render();

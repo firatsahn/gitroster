@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 
-from . import agent, export, opener, procs, repoinfo, scanner
+from . import __version__, agent, export, opener, procs, repoinfo, scanner
 from .store import Store
 
 STATIC = Path(__file__).parent / "static"
@@ -29,7 +29,15 @@ class App:
         threading.Thread(target=opener.detect, daemon=True).start()  # warm the editor/terminal cache
 
     def settings(self):
-        return {"settings": self.store.settings(), **opener.detect()}
+        return {"settings": self.store.settings(), **opener.detect(), "agents": agent.catalog(), "version": __version__,
+                "agent_override": bool(self.agent_cmd or os.environ.get("GITROSTER_AGENT"))}
+
+    def summarize(self, path):
+        repo = self.repo(path)
+        if not repo:
+            raise ValueError("unknown repo")
+        summary = agent.summarize(repo, self.store.settings(), self.agent_cmd)
+        return self.store.update_meta(path, summary=summary)
 
     def repo(self, path):
         return next((r for r in self.scan.get("repos", []) if r["path"] == path), None)
@@ -176,7 +184,7 @@ def make_handler(app):
                     os.kill(pid, signal.SIGTERM)
                     return self.ok({"ok": True})
                 if path == "/api/settings":
-                    fields = {k: str(body[k])[:300] for k in ("editor", "editor_custom", "terminal", "theme") if k in body}
+                    fields = {k: str(body[k])[:300] for k in ("editor", "editor_custom", "terminal", "theme", "agent", "agent_custom") if k in body}
                     if fields.get("theme") not in (None, "system", "light", "dark"):
                         return self.err(400, "theme must be system, light or dark")
                     app.store.update_settings(**fields)
@@ -194,12 +202,8 @@ def make_handler(app):
                     if "note" in fields:
                         fields["note"] = str(fields["note"])[:4000]
                     return self.ok(app.store.update_meta(body["path"], **fields))
-                if path == "/api/explain":
-                    repo = app.repo(body["path"])
-                    if not repo:
-                        return self.err(404, "unknown repo")
-                    text = agent.explain(repo, app.agent_cmd)
-                    return self.ok(app.store.update_meta(body["path"], ai=text, ai_at=time.time()))
+                if path == "/api/summarize":
+                    return self.ok(app.summarize(body["path"]))
             except (KeyError, ValueError, TypeError) as e:
                 return self.err(400, f"bad request: {e}")
             except RuntimeError as e:

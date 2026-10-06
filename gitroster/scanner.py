@@ -119,6 +119,7 @@ def git_info(path):
     info["remote"] = run(["git", "-C", str(path), "remote", "get-url", "origin"], 5).strip()
     last = run(["git", "-C", str(path), "log", "-1", "--format=%ct"], 5).strip()
     info["last_commit"] = int(last) if last.isdigit() else None
+    info["head"] = run(["git", "-C", str(path), "rev-parse", "HEAD"], 5).strip()
     info["remotes"] = {}
     for line in run(["git", "-C", str(path), "remote", "-v"], 5).splitlines():
         parts = line.split()
@@ -155,7 +156,7 @@ def readme(path):
                     if re.match(r"(python3?|npm|npx|pnpm|yarn|docker|uv|pip3?|make|cargo|go|bash|\./)\b", line) and len(line) < 120:
                         cmds.append(line)
             ports = sorted({int(x) for x in re.findall(r"(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})", text)})[:4]
-            return {"title": title, "summary": para[:220], "cmds": list(dict.fromkeys(cmds))[:5], "expected_ports": ports}
+            return {"title": title, "summary": para[:220], "readme_file": name, "cmds": list(dict.fromkeys(cmds))[:5], "expected_ports": ports}
     return {"title": "", "summary": "", "cmds": [], "expected_ports": []}
 
 

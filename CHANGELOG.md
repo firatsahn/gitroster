@@ -15,6 +15,8 @@
 - Related repos: duplicate clones of one remote, and local packages that depend on each other.
 - Light, dark and system theme, chosen in Settings.
 - Settings opens instantly: editors and terminals are detected in the background (PATH is listed once instead of probed per command, 3.7 s to 0.7 s on WSL).
+- AI summary of a repo (what it is, stack, how to run, status, gotchas) from the agent CLI you choose in Settings: Claude Code, Codex CLI or Gemini CLI are detected, with a custom command as the alternative. Replaces "Explain how to run".
+- Settings has an About section: how gitroster works and who made it.
 - Markdown export of the whole inventory (`/api/export.md`, Export button).
 
 ## 0.1.0

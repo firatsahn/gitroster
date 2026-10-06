@@ -12,7 +12,7 @@
 
 You clone a lot of open source projects, fork some, and write your own. Months later you have no idea which ones are still on disk, which are running in the background, which port belongs to what, or how you started them. gitroster scans your folders and puts it all on one page.
 
-## Quick start
+## Quick start (web, recommended)
 
 ```bash
 pip install gitroster         # or: pipx install gitroster
@@ -75,9 +75,12 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - One click to open it in the browser, one to stop it
 - Docker containers, matched to their compose folder
 
-**AI runbook (optional)**
-- Press "Explain how to run" and your local agent writes a short runbook from the README, file tree and detected commands. It is labelled *AI-generated, unverified* and nothing is executed.
-- Default agent is `claude -p`. Use any command that reads a prompt on stdin: `gitroster --agent-cmd "ollama run llama3.1"` or set `GITROSTER_AGENT`.
+**AI summary (optional)**
+- Press the sparkle button next to **Details** and an agent CLI you already have writes a short summary of the repo: what it is, stack, how to run it, what you were working on, gotchas. It is labelled *AI-generated, unverified*, shown on the card and on the repo's Overview, and marked when the repo has changed since.
+- gitroster finds the agent CLIs installed on your machine (Claude Code, Codex CLI, Gemini CLI) and you pick one in Settings. There is no API key to enter and no model to host: it runs the CLI you are already signed in to, with its tools turned off, and nothing is executed.
+- It sends that agent the README, a file list (secret-looking files are left out), dependency names, detected commands and recent commit titles. Where that goes depends on the agent: all three are cloud services.
+- Prefer another tool? Use any command that reads a prompt on stdin: a custom command in Settings, `gitroster --agent-cmd "my-agent"` or `GITROSTER_AGENT`.
+- Only Claude Code is tested here. The Codex and Gemini invocations follow their documented non-interactive modes but are untested.
 
 ## How it works
 
