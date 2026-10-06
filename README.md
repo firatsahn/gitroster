@@ -12,7 +12,7 @@
 
 You clone a lot of open source projects, fork some, and write your own. Months later you have no idea which ones are still on disk, which are running in the background, which port belongs to what, or how you started them. gitroster scans your folders and puts it all on one page.
 
-## Quick start
+## Quick start (web, recommended)
 
 ```bash
 pip install gitroster         # or: pipx install gitroster

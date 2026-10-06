@@ -62,6 +62,14 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(agent.command({}), (None, ""))
 
     @unittest.skipIf(sys.platform == "win32", "uses shell-script stand-ins for the CLIs")
+    def test_catalog_lists_every_agent_with_install_state(self):
+        self.fake_cli("codex")
+        cat = {a["id"]: a for a in agent.catalog()}
+        self.assertEqual(list(cat), ["claude", "codex", "gemini"])
+        self.assertEqual([cat[i]["installed"] for i in cat], [False, True, False])
+        self.assertTrue(all(a["install"] for a in cat.values()))  # a hint for the ones that are missing
+
+    @unittest.skipIf(sys.platform == "win32", "uses shell-script stand-ins for the CLIs")
     def test_command_choice_and_precedence(self):
         self.fake_cli("claude", "codex")
         argv, label = agent.command({})

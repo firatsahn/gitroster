@@ -83,6 +83,9 @@ html{overflow-y:scroll}
 a.ibw{display:inline-flex}
 #popen{display:inline-flex;gap:6px}
 .line .ib,.ib.sm{width:28px;height:28px}
+.ib.xs{width:22px;height:22px;border-radius:6px}
+.ib.xs svg{width:13px;height:13px}
+.top .go,.top .ib{align-self:center}
 .ai-btn{color:var(--mute)}
 .ai-btn.on{color:var(--fg);border-color:var(--fg)}
 .ai-btn.stale{color:var(--warn);border-color:var(--warn)}
@@ -92,6 +95,11 @@ a.ibw{display:inline-flex}
 .about a{color:var(--fg)}
 .ai .line{margin:4px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:nowrap}
 .ai .v{flex:1;min-width:0}
+.aihead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.aihead svg{color:var(--fg)}
+.aifoot{margin-top:6px}
+.opt.dim{opacity:.55}
+.hint{margin:-2px 0 6px 24px}
 .ib{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--fg)}
 .ib:disabled svg{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -318,7 +326,7 @@ function summaryBlock(r) {
   if (!s) return `<div class="line"><span class="k">AI</span>${btn}<span class="meta">runs the agent CLI you chose in Settings · nothing is executed</span></div>`;
   const rows = s.raw ? `<div>${esc(s.raw)}</div>` : [['what', 'What'], ['stack', 'Stack'], ['run', 'Run'], ['status', 'Status'], ['watch', 'Watch out']]
     .filter(([k]) => s[k] && s[k].toLowerCase() !== 'none').map(([k, l]) => `<div class="line"><span class="k">${l}</span><span class="v">${esc(s[k])}</span></div>`).join('');
-  return `<div class="ai">${rows}</div><div class="meta" style="margin-top:6px">AI-generated, unverified · ${esc(s.agent || 'agent')} · ${ago(s.at)}${aiStale(r) ? ' · <span class="tag warn">repo changed since</span>' : ''} &nbsp;${btn}</div>`;
+  return `<div class="ai"><div class="aihead">${ICON_AI}<b>Written by AI</b><span class="meta">${esc(s.agent || 'agent')} · ${ago(s.at)}</span><span class="tag">unverified</span>${aiStale(r) ? '<span class="tag warn">repo changed since</span>' : ''}</div>${rows}<div class="meta aifoot">Based on this repo's README, file list, dependency names and recent commit titles. ${btn}</div></div>`;
 }
 async function runAi(path) {
   if (ui.busy.has('ai' + path)) return;
@@ -349,8 +357,8 @@ function repoRow(r) {
       ${r.stack.map(s => `<span class="tag">${esc(s)}</span>`).join('')}
       <span class="sp"></span>
       <span class="meta">${size(r.size)} · ${ago(r.last_commit)}</span>
-      <button class="ib sm ai-btn ${aiBusy(r) ? 'busy' : aiOf(r) ? (aiStale(r) ? 'stale' : 'on') : ''}" data-ai="icon" title="${aiOf(r) ? 'AI summary' + (aiStale(r) ? ' (repo changed since)' : '') : 'Summarize with AI'}" aria-label="AI summary">${ICON_AI}</button>
       <button class="go primary" data-pp="${esc(p)}" data-pt="overview">Details</button>
+      <button class="ib xs ai-btn ${aiBusy(r) ? 'busy' : aiOf(r) ? (aiStale(r) ? 'stale' : 'on') : ''}" data-ai="icon" title="${aiOf(r) ? 'AI summary' + (aiStale(r) ? ' (repo changed since)' : '') : 'Summarize with AI'}" aria-label="AI summary">${ICON_AI}</button>
     </div>
     <div class="path">${esc(home(p))}${r.branch ? ` · ${esc(r.branch)}` : ''}</div>
     ${open ? detail(r) : ''}
@@ -362,7 +370,7 @@ function detail(r) {
   const cmd = c => `<code>${esc(c)}</code>`;
   const ports = S.ports.filter(x => x.repo === r.path);
   let h = '<div class="detail">';
-  if (r.summary) h += `<div class="line">${esc(r.summary)}</div>`;
+  if (r.summary) h += `<div class="line">${esc(r.summary)}</div><div class="meta" style="margin:-2px 0 6px">from ${esc(r.readme_file || 'README')} · not AI</div>`;
   h += `<div class="line"><span class="k">note</span></div><textarea data-note placeholder="What is this? How do you use it?">${esc(m.note || '')}</textarea>`;
   if (r.remote) h += `<div class="line"><span class="k">remote</span><span class="mono">${esc(r.remote)}</span></div>`;
   if (r.envs.length) h += `<div class="line"><span class="k">env</span><span>${r.envs.map(e => `${cmd(home(e.path))} <span class="meta">${e.kind}${e.python ? ' ' + esc(e.python) : ''} · ${size(e.size)}</span>`).join('<br>')}</span></div>`;
@@ -587,7 +595,7 @@ async function pOverview(r) {
         <div><b>${ov.first_commit ? ago(ov.first_commit).replace(' ago', '') : '?'}</b><span>age</span></div>
         <div><b>${ago(r.last_commit).replace(' ago', '')}</b><span>last commit</span></div><div><b>${size(r.size)}</b><span>on disk</span></div></div>
       <div style="margin-bottom:14px">${summaryBlock(r)}</div>
-      ${r.summary ? `<p>${esc(r.summary)}</p>` : ''}
+      ${r.summary ? `<p style="margin-bottom:2px">${esc(r.summary)}</p><div class="meta" style="margin-bottom:12px">first paragraph of ${esc(r.readme_file || 'README')} · not AI</div>` : ''}
       ${meta(r).note ? `<div class="ai" style="margin-bottom:10px"><b>Your note</b><br>${esc(meta(r).note)}</div>` : ''}
       ${rel.length ? `<h2>Related</h2><div class="detail" style="display:block;margin-top:0">${rel.join('')}</div>` : ''}
       ${r.run.length ? `<h2>Run</h2><div class="line">${r.run.map(c => `<code>${esc(c)}</code>`).join(' ')}</div>` : ''}
@@ -721,11 +729,13 @@ function renderCfg() {
     ${cfg.terminals.length ? `<select id="eterm" style="width:100%">${cfg.terminals.map(t => `<option value="${esc(t.id)}" ${st.terminal === t.id ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select>` : '<div class="meta">No terminal found.</div>'}
     <h2>AI agent</h2>
     ${cfg.agent_override ? '<div class="meta" style="margin-bottom:6px">Overridden by --agent-cmd or GITROSTER_AGENT.</div>' : ''}
-    ${cfg.agents.map(a => opt('agent', a.id, a.label, st.agent === a.id || (!st.agent && a.id === cfg.agents[0].id))).join('') || '<div class="meta">No agent CLI found. Install Claude Code, Codex CLI or Gemini CLI, or use a custom command.</div>'}
+    ${cfg.agents.map(a => a.installed ? opt('agent', a.id, a.label, st.agent === a.id || (!st.agent && a.id === (cfg.agents.find(x => x.installed) || {}).id))
+        + `<div class="meta hint">install: <code>${esc(a.install)}</code></div>`
+      : `<label class="opt dim"><input type="radio" disabled>${esc(a.label)} <span class="tag">not installed</span></label><div class="meta hint">install: <code>${esc(a.install)}</code></div>`).join('')}
     ${opt('agent', 'custom', 'Custom command', st.agent === 'custom')}
     <input id="acustom" placeholder="reads the prompt on stdin, e.g. my-agent --no-tools" value="${esc(st.agent_custom || '')}" style="width:100%;margin-top:4px">
     <div class="meta" style="margin-top:6px">Summaries run the CLI you pick with tools turned off. It receives the README, a file list, dependency names and recent commit titles, and nothing else. Where that text goes depends on the agent: Claude, Codex and Gemini are cloud services.</div>
-    <div class="meta" style="margin-top:12px">Only editors, terminals and agents installed on this machine are listed. Saved automatically.</div>
+    <div class="meta" style="margin-top:12px">Editors and terminals: only those installed on this machine are listed. Agents that are not installed are greyed out. Saved automatically.</div>
     <h2>About</h2>
     <div class="about"><b>gitroster</b> <span class="meta">v${esc(cfg.version || '')} · MIT</span>
       <ul>

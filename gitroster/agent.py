@@ -15,12 +15,15 @@ from pathlib import Path
 from . import scanner
 from .pathscan import which
 
-# id, label, program, arguments. The prompt is written to stdin. Every entry must keep the agent
-# away from tools: the summary needs only text, and nothing should be run or edited.
+# id, label, program, arguments, how to install. The prompt is written to stdin. Every entry must keep
+# the agent away from tools: the summary needs only text, and nothing should be run or edited.
 AGENTS = [
-    ("claude", "Claude Code", "claude", ["-p", "--disallowedTools", "Bash,Edit,Write,NotebookEdit"]),
-    ("codex", "Codex CLI", "codex", ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "-"]),
-    ("gemini", "Gemini CLI", "gemini", ["-p", "Follow the instructions in the input exactly. Do not use tools."]),
+    ("claude", "Claude Code", "claude", ["-p", "--disallowedTools", "Bash,Edit,Write,NotebookEdit"],
+     "npm install -g @anthropic-ai/claude-code"),
+    ("codex", "Codex CLI", "codex", ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "-"],
+     "npm install -g @openai/codex"),
+    ("gemini", "Gemini CLI", "gemini", ["-p", "Follow the instructions in the input exactly. Do not use tools."],
+     "npm install -g @google/gemini-cli"),
 ]
 
 PROMPT = """You are helping a developer remember a project they wrote or cloned long ago.
@@ -57,7 +60,12 @@ README (truncated):
 
 def detect():
     """Agent CLIs installed on this machine."""
-    return [{"id": i, "label": label} for i, label, prog, _ in AGENTS if which(prog)]
+    return [{"id": e[0], "label": e[1]} for e in AGENTS if which(e[2])]
+
+
+def catalog():
+    """Every agent gitroster knows how to drive, with whether it is installed here."""
+    return [{"id": i, "label": label, "installed": bool(which(prog)), "install": hint} for i, label, prog, _, hint in AGENTS]
 
 
 def _resolve(argv):

@@ -29,7 +29,7 @@ class App:
         threading.Thread(target=opener.detect, daemon=True).start()  # warm the editor/terminal cache
 
     def settings(self):
-        return {"settings": self.store.settings(), **opener.detect(), "agents": agent.detect(), "version": __version__,
+        return {"settings": self.store.settings(), **opener.detect(), "agents": agent.catalog(), "version": __version__,
                 "agent_override": bool(self.agent_cmd or os.environ.get("GITROSTER_AGENT"))}
 
     def summarize(self, path):
