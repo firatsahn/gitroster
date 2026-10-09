@@ -2,6 +2,7 @@
 import os
 import re
 import subprocess
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -204,10 +205,24 @@ def search_repo(repo, q, scope, regex=False, per=40):
     return res
 
 
+def check_regex(q):
+    """Raise ValueError when `q` is not a valid extended regular expression for `git grep -E`."""
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "f").write_text("x")
+        try:
+            r = subprocess.run(["git", "grep", "--no-index", "-E", "-q", "-e", q], cwd=d, capture_output=True, timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            return
+        if r.returncode > 1:
+            raise ValueError("invalid regular expression")
+
+
 def search(repos, q, scope=("code", "files", "commits"), regex=False):
     q = (q or "").strip()
     if len(q) < 2:
         return []
+    if regex and "code" in scope:
+        check_regex(q)
     with ThreadPoolExecutor(8) as ex:
         results = list(ex.map(lambda r: search_repo(r, q, scope, regex), repos))
     return [r for r in results if r["code"] or r["files"] or r["commits"]]

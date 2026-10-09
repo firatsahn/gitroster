@@ -305,7 +305,10 @@ def subprojects(path, limit=8):
     for d in dirs:
         if d.name in PRUNE or d.name.startswith("."):
             continue
-        stack, _, runs = detect(d)
+        try:
+            stack, _, runs = detect(d)
+        except OSError:  # unreadable folder
+            continue
         if not stack:
             continue
         if runs:
@@ -338,6 +341,15 @@ def analyze_repo(p, tool):
     r["subprojects"] = subprojects(p)
     r["size"] = dir_size(p)
     return r
+
+
+def safe_analyze(p, tool):
+    """One broken repo must not take the whole scan down."""
+    try:
+        return analyze_repo(p, tool)
+    except Exception as e:
+        print(f"gitroster: skipped {p}: {e}", file=sys.stderr)
+        return None
 
 
 def owner(path, items):
@@ -419,7 +431,7 @@ def scan(roots, progress=None):
     roots = [str(Path(r).expanduser()) for r in roots]
     repo_paths, env_paths = walk(roots)
     with ThreadPoolExecutor(8) as ex:
-        repos = list(ex.map(lambda rp: analyze_repo(*rp), repo_paths))
+        repos = [r for r in ex.map(lambda rp: safe_analyze(*rp), repo_paths) if r]
         envs = [{"path": str(p), "name": p.name, "kind": k, "python": env_python_version(p) if k == "venv" else "", "repo": None}
                 for p, k in env_paths]
         for e, s in zip(envs, ex.map(lambda e: dir_size(e["path"]), envs)):

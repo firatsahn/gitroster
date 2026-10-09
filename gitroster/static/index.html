@@ -265,7 +265,7 @@ async function load() {
 }
 async function rescan() {
   $('#re').disabled = true; $('#sub').textContent = 'scanning…';
-  try { S = await api('/api/scan'); } catch (e) { toast(e.message); }
+  try { S = await api('/api/scan', {}); } catch (e) { toast(e.message); }
   $('#re').disabled = false; render();
 }
 async function pollPorts() {
