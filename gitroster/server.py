@@ -20,8 +20,8 @@ TYPES = {".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".png": "
 
 
 class App:
-    def __init__(self, roots, port, store=None, agent_cmd=None):
-        self.roots, self.port, self.agent_cmd = roots, port, agent_cmd
+    def __init__(self, roots, port, store=None, agent_cmd=None, demo=False):
+        self.roots, self.port, self.agent_cmd, self.demo = roots, port, agent_cmd, demo
         self.store = store or Store()
         self.scan = self.store.cached_scan()
         self.scanning = False
@@ -65,7 +65,8 @@ class App:
         s["meta"] = self.store.meta()
         s["scanning"] = self.scanning
         s["platform"] = {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
-        s["home"] = str(Path.home())
+        s["home"] = str(self.store.config.parent) if self.demo else str(Path.home())  # demo paths read as ~/projects/...
+        s["demo"] = self.demo
         return s
 
     def start(self, path, cmd):
@@ -179,6 +180,8 @@ def make_handler(app):
             except ValueError:
                 return self.err(400, "bad json")
             path = self.path
+            if app.demo and path in ("/api/kill", "/api/start", "/api/open", "/api/summarize"):
+                return self.err(403, "disabled in demo mode")
             try:
                 if path == "/api/scan":  # POST only: a page on another site must not be able to trigger a scan
                     return self.ok(app.do_scan())
