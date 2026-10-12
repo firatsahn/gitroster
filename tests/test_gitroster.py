@@ -55,6 +55,34 @@ class ScannerTest(unittest.TestCase):
         self.assertFalse(r["dirty"])
         self.assertEqual(r["kind"], "local")
 
+    @unittest.skipIf(sys.platform == "win32" or (hasattr(os, "geteuid") and os.geteuid() == 0), "needs POSIX permissions and a non-root user")
+    def test_unreadable_subfolder_does_not_break_scan(self):
+        p = make_repo(self.root, "locked", {"README.md": "# Locked\n"})
+        secret = p / "secret"
+        secret.mkdir()
+        secret.chmod(0)
+        try:
+            s = scanner.scan([self.root])
+        finally:
+            secret.chmod(0o755)
+        self.assertEqual([r["name"] for r in s["repos"]], ["locked"])
+
+    def test_one_broken_repo_is_skipped_not_fatal(self):
+        make_repo(self.root, "good")
+        make_repo(self.root, "bad")
+        real = scanner.analyze_repo
+
+        def flaky(p, tool):
+            if Path(p).name == "bad":
+                raise RuntimeError("boom")
+            return real(p, tool)
+        scanner.analyze_repo = flaky
+        try:
+            s = scanner.scan([self.root])
+        finally:
+            scanner.analyze_repo = real
+        self.assertEqual([r["name"] for r in s["repos"]], ["good"])
+
     def test_dirty_and_branch_names_with_dots(self):
         p = make_repo(self.root, "app", {"main.py": "print(1)"})
         git(p, "checkout", "-qb", "release/v1.2")
@@ -334,6 +362,31 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(code, 403)
         code, _ = self.call("/api/meta", {"path": str(self.repo), "note": "x"}, {"Origin": "http://evil.example"})
         self.assertEqual(code, 403)
+
+    def test_rejects_bad_content_length(self):
+        req = urllib.request.Request(self.base + "/api/meta", data=b"{}", headers={"Origin": self.base, "Content-Length": "-1"})
+        with self.assertRaises((urllib.error.HTTPError, urllib.error.URLError, ConnectionError)) as cm:
+            urllib.request.urlopen(req, timeout=5)
+        self.assertEqual(getattr(cm.exception, "code", 413), 413)
+
+    def test_scan_is_post_only(self):
+        code, _ = self.call("/api/scan")
+        self.assertEqual(code, 404)
+        code, _ = self.call("/api/scan", {}, {"Origin": "http://evil.example"})
+        self.assertEqual(code, 403)
+        code, s = self.call("/api/scan", {})
+        self.assertEqual((code, [r["name"] for r in s["repos"]]), (200, ["demo"]))
+
+    def test_invalid_regex_search_reports_an_error(self):
+        code, r = self.call("/api/search?q=%28%5B&regex=1")
+        self.assertEqual((code, r["error"]), (400, "invalid regular expression"))
+        code, r = self.call("/api/search?q=pri%2B&regex=1")
+        self.assertEqual(code, 200)
+        self.assertEqual(len(r["results"]), 1)
+
+    def test_logs_of_same_named_folders_stay_apart(self):
+        a, b = self.app.store.log_path("/x/one/app"), self.app.store.log_path("/y/two/app")
+        self.assertNotEqual(a, b)
 
     def test_meta_roundtrip_and_unknown_repo(self):
         code, m = self.call("/api/meta", {"path": str(self.repo), "note": "hi", "pinned": True, "junk": 1})

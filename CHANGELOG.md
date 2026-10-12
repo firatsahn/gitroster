@@ -18,6 +18,10 @@
 - AI summary of a repo (what it is, stack, how to run, status, gotchas) from the agent CLI you choose in Settings: Claude Code, Codex CLI or Gemini CLI are detected, with a custom command as the alternative. Replaces "Explain how to run".
 - Settings has an About section: how gitroster works and who made it.
 - Markdown export of the whole inventory (`/api/export.md`, Export button).
+- A folder that cannot be read, or one repo that fails to analyze, no longer aborts the whole scan.
+- Starting a scan is now a POST, and only one scan runs at a time.
+- An invalid regular expression in search shows an error instead of an empty result.
+- Request bodies are limited to 1 MB; run logs are kept per repo path, so two folders with the same name no longer share one.
 
 ## 0.1.0
 

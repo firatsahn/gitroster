@@ -1,4 +1,5 @@
 """Small JSON persistence: user notes/flags and the last scan."""
+import hashlib
 import json
 import os
 import sys
@@ -71,7 +72,9 @@ class Store:
         with self.lock:
             self._save(self.state / "scan.json", scan)
 
-    def log_path(self, name):
+    def log_path(self, repo_path):
+        """One log per repo folder; the hash keeps two repos with the same folder name apart."""
         d = self.state / "logs"
         d.mkdir(exist_ok=True)
-        return d / f"{name}.log"
+        key = hashlib.sha1(str(repo_path).encode()).hexdigest()[:8]
+        return d / f"{Path(repo_path).name}-{key}.log"

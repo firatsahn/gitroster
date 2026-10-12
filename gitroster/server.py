@@ -44,6 +44,8 @@ class App:
 
     def do_scan(self):
         with self.lock:
+            if self.scanning:  # a scan is already running: don't start a second one
+                return self.state()
             self.scanning = True
         try:
             result = scanner.scan(self.roots)
@@ -70,7 +72,7 @@ class App:
         repo = self.repo(path)
         if not repo or cmd not in repo["run"]:
             raise ValueError("command is not a detected run command for this repo")
-        log = self.store.log_path(Path(path).name)
+        log = self.store.log_path(path)
         with open(log, "ab") as f:
             f.write(f"\n$ {cmd}   [{time.ctime()}]\n".encode())
             if sys.platform == "win32":  # cmd comes from the detected list, never from the request
@@ -83,7 +85,7 @@ class App:
         return {"pid": proc.pid, "log": str(log)}
 
     def tail(self, path, n=4000):
-        log = self.store.log_path(Path(path).name)
+        log = self.store.log_path(path)
         try:
             with open(log, "rb") as f:
                 f.seek(0, 2)
@@ -149,8 +151,6 @@ def make_handler(app):
                 return self.send(200, (STATIC / "icon.svg").read_bytes(), TYPES[".svg"])
             if path == "/api/state":
                 return self.ok(app.state())
-            if path == "/api/scan":
-                return self.ok(app.do_scan())
             if path.startswith("/api/") and path.split("/")[2] in READ:
                 return self.read_api(path.split("/")[2])
             if path == "/api/settings":
@@ -172,11 +172,16 @@ def make_handler(app):
             if self.headers.get("Host") not in hosts or origin not in hosts:
                 return self.err(403, "forbidden")
             try:
-                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+                length = int(self.headers.get("Content-Length", 0))
+                if not 0 <= length <= 1_000_000:
+                    return self.err(413, "body too large")
+                body = json.loads(self.rfile.read(length) or b"{}")
             except ValueError:
                 return self.err(400, "bad json")
             path = self.path
             try:
+                if path == "/api/scan":  # POST only: a page on another site must not be able to trigger a scan
+                    return self.ok(app.do_scan())
                 if path == "/api/kill":
                     pid = int(body["pid"])
                     if pid not in {p["pid"] for p in procs.listening()}:
