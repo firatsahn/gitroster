@@ -8,6 +8,13 @@
   <b>A roster of every git repo on your machine: yours, forks and clones.<br>What each one is, what's running, and how to run it.</b>
 </p>
 
+<p align="center">
+  <a href="https://pypi.org/project/gitroster/"><img src="https://img.shields.io/pypi/v/gitroster" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/gitroster/"><img src="https://img.shields.io/pypi/pyversions/gitroster" alt="Python versions"></a>
+  <a href="https://github.com/firatsahn/gitroster/actions/workflows/ci.yml"><img src="https://github.com/firatsahn/gitroster/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/pypi/l/gitroster" alt="MIT license"></a>
+</p>
+
 ---
 
 <p align="center">
