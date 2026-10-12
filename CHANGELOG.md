@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0
+
 - Windows and macOS support (ports via `lsof` / `netstat`, per-OS config folders, Windows paths and commands). CI now runs on all three.
 - Electron desktop app in `electron/`.
 - Health check: tracked secret-looking files, `.env` not ignored, missing `.gitignore`.
@@ -22,6 +24,8 @@
 - Starting a scan is now a POST, and only one scan runs at a time.
 - An invalid regular expression in search shows an error instead of an empty result.
 - Request bodies are limited to 1 MB; run logs are kept per repo path, so two folders with the same name no longer share one.
+- `gitroster --demo`: sample repos in a throwaway folder, to try the UI or take screenshots. Run, stop, open and summarize are disabled in it.
+- Screenshots in the README, issue and pull request templates, Code of Conduct, Dependabot and a PyPI publish workflow.
 
 ## 0.1.0
 

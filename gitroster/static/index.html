@@ -281,7 +281,7 @@ async function pollPorts() {
 function render() {
   const q = $('#q').value.toLowerCase();
   const total = S.repos.reduce((a, r) => a + (r.size || 0), 0);
-  $('#sub').textContent = S.scanned ? `${S.repos.length} repos · ${S.ports.length} ports · ${size(total)}` : 'no scan yet';
+  $('#sub').textContent = S.scanned ? `${S.repos.length} repos · ${S.ports.length} ports · ${size(total)}${S.demo ? ' · demo data' : ''}` : 'no scan yet';
   document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === ui.tab));
   for (const id of ['repos', 'search', 'ports']) $('#' + id).classList.toggle('hide', id !== ui.tab);
   $('#q').style.visibility = ui.tab === 'search' ? 'hidden' : '';

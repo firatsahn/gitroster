@@ -4,7 +4,7 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from . import __version__, scanner
+from . import __version__, demo, scanner
 from .server import App, serve
 
 
@@ -17,6 +17,7 @@ def main(argv=None):
     ap.add_argument("--open", action="store_true", help="open the page in a browser")
     ap.add_argument("--agent-cmd", help='command for AI summaries; reads the prompt on stdin '
                                         '(default: "claude -p", or $GITROSTER_AGENT)')
+    ap.add_argument("--demo", action="store_true", help="show sample repos instead of scanning your machine")
     ap.add_argument("--version", action="version", version=f"gitroster {__version__}")
     a = ap.parse_args(argv)
 
@@ -24,7 +25,12 @@ def main(argv=None):
         json.dump(scanner.scan(a.roots), sys.stdout, indent=2)
         return 0
 
-    app = App(a.roots, a.port, agent_cmd=a.agent_cmd)
+    if a.demo:
+        roots, store = demo.setup()
+        app = App(roots, a.port, store=store, agent_cmd=a.agent_cmd, demo=True)
+        a.roots = ["sample repos"]
+    else:
+        app = App(a.roots, a.port, agent_cmd=a.agent_cmd)
     url = f"http://127.0.0.1:{a.port}"
     print(f"gitroster {__version__} on {url}  (scanning {', '.join(a.roots)})")
     if a.open:

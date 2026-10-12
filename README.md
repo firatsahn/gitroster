@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="gitroster/static/icon.svg" width="72" alt="gitroster logo">
+  <img src="https://raw.githubusercontent.com/firatsahn/gitroster/main/gitroster/static/icon.svg" width="72" alt="gitroster logo">
 </p>
 
 <h1 align="center">gitroster</h1>
@@ -9,6 +9,10 @@
 </p>
 
 ---
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/firatsahn/gitroster/main/docs/home-light.png" alt="gitroster: a list of repos with running ports, uncommitted work, an AI summary and a note" width="860">
+</p>
 
 You clone a lot of open source projects, fork some, and write your own. Months later you have no idea which ones are still on disk, which are running in the background, which port belongs to what, or how you started them. gitroster scans your folders and puts it all on one page.
 
@@ -25,6 +29,8 @@ From source, without installing:
 git clone https://github.com/firatsahn/gitroster && cd gitroster
 python3 -m gitroster ~/projects
 ```
+
+Want to look around first? `gitroster --demo` shows sample repos and touches nothing on your machine. Running, stopping and opening are switched off in the demo.
 
 ### Desktop app (Electron)
 
@@ -63,6 +69,10 @@ Scan several folders at once with `gitroster ~/projects ~/tools`. Without argume
 - Light, dark or system theme in Settings
 - One-click open in your editor, terminal or file manager. Settings lists the editors (VS Code, Cursor, PyCharm, IntelliJ, Zed, Sublime and more) and terminals installed on your machine so you can pick one, or set a custom command
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/firatsahn/gitroster/main/docs/detail.png" alt="Repo detail page with an AI summary, languages, contributors and most changed files" width="860">
+</p>
+
 **How to run it**
 - Setup and run commands detected from `package.json` (npm, pnpm, yarn), `pyproject.toml`, `requirements.txt`, `manage.py`, `main.py`/`app.py`, `Cargo.toml`, `go.mod`, `pubspec.yaml`, `Makefile`, Docker Compose and Wrangler
 - Commands use the repo's own virtual environment when one exists
@@ -88,7 +98,7 @@ Detection is deterministic: file checks, `git`, `du`, `ss` and `/proc`. The AI p
 
 ## Limits
 
-- Linux and WSL for now. Ports use `ss` and `/proc`. macOS is welcome as a contribution.
+- Linux, macOS and Windows. On Windows a process's working directory is not readable, so ports are matched by command line only.
 - Only processes owned by your user are visible.
 - Hidden folders (`~/.nvm`), `node_modules` and anything deeper than 6 levels are skipped.
 - A big first scan can take a while on slow disks or `/mnt/c`. The last result is shown instantly while a new scan runs.

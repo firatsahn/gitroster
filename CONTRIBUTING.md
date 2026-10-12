@@ -3,9 +3,10 @@
 Thanks for helping. The project is small on purpose: standard library only, one HTML file, no build step.
 
 ```bash
-git clone <repo> && cd gitroster
+git clone https://github.com/firatsahn/gitroster && cd gitroster
 python3 -m unittest discover -s tests -v
 python3 -m gitroster ~/projects     # run from source
+python3 -m gitroster --demo         # sample repos, safe to click around
 ```
 
 ## Guidelines
@@ -18,7 +19,8 @@ python3 -m gitroster ~/projects     # run from source
 
 ## Good first issues
 
-- Detectors for more stacks (Ruby, PHP, Java, Deno, Bun, uv, Poetry).
-- macOS support for ports (`lsof` instead of `ss` and `/proc`).
-- Detect projects that live in a subfolder of the repo.
+- Detectors for more stacks (Ruby, PHP, Java, Deno, Bun, uv, Poetry). They live in `detect()` in `gitroster/scanner.py`.
 - Run-in-terminal instead of background start.
+- Try the Codex CLI and Gemini CLI summaries for real and report what breaks (see `gitroster/agent.py`).
+
+By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Please add a line to the Unreleased section of [CHANGELOG.md](CHANGELOG.md).

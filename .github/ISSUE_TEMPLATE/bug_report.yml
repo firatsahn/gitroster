@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work or shows wrong information
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you saw. A screenshot helps.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: gitroster version
+      description: Output of `gitroster --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Linux, macOS, Windows, WSL]
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Output of `python3 --version`
+  - type: dropdown
+    id: how
+    attributes:
+      label: How do you run it
+      options: [Web (python -m gitroster / gitroster), Desktop app (Electron)]
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Does it happen with `gitroster --demo`? Please remove private paths and repo names from anything you paste.
