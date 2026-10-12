@@ -17,6 +17,13 @@ python3 -m gitroster --demo         # sample repos, safe to click around
 - **Anything that runs or kills a process** must be confirmed in the UI and validated on the server against data the server produced.
 - Add a test for every detector or endpoint you add. Tests build throwaway git repos in a temp folder, see `tests/test_gitroster.py`.
 
+## Releasing (maintainers)
+
+1. Move the Unreleased lines in `CHANGELOG.md` under a new version heading.
+2. Set the same version in `gitroster/__init__.py`, `electron/package.json` and `electron/package-lock.json` (the two top-level `version` fields).
+3. Open a PR and merge it once CI is green.
+4. On GitHub, create a release with a `vX.Y.Z` tag on `main`. Publishing it runs `.github/workflows/publish.yml`, which runs the tests and uploads to PyPI (trusted publishing, no token).
+
 ## Good first issues
 
 - Detectors for more stacks (Ruby, PHP, Java, Deno, Bun, uv, Poetry). They live in `detect()` in `gitroster/scanner.py`.
